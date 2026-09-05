@@ -1,0 +1,54 @@
+package com.core.coreboot.platform.auth.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.time.Duration;
+
+@ConfigurationProperties(prefix = "platform.security.admin")
+public class AdminSecurityProperties {
+    private String jwtSecretBase64;
+    private Duration tokenTtl = Duration.ofHours(8);
+    private String issuer = "point-platform-admin";
+    private int maxFailedAttempts = 5;
+    private Duration lockDuration = Duration.ofMinutes(15);
+
+    public String getJwtSecretBase64() {
+        return jwtSecretBase64;
+    }
+
+    public void setJwtSecretBase64(String jwtSecretBase64) {
+        this.jwtSecretBase64 = jwtSecretBase64;
+    }
+
+    public Duration getTokenTtl() {
+        return tokenTtl;
+    }
+
+    public void setTokenTtl(Duration tokenTtl) {
+        this.tokenTtl = tokenTtl;
+    }
+
+    public String getIssuer() {
+        return issuer;
+    }
+
+    public void setIssuer(String issuer) {
+        this.issuer = issuer;
+    }
+
+    public int getMaxFailedAttempts() {
+        return maxFailedAttempts;
+    }
+
+    public void setMaxFailedAttempts(int maxFailedAttempts) {
+        this.maxFailedAttempts = maxFailedAttempts;
+    }
+
+    public Duration getLockDuration() {
+        return lockDuration;
+    }
+
+    public void setLockDuration(Duration lockDuration) {
+        this.lockDuration = lockDuration;
+    }
+}

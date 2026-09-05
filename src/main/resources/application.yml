@@ -40,3 +40,19 @@ qrcode:
   generate:
     path: ./upload/qrcode/
     ip: 127.0.0.1
+
+platform:
+  security:
+    admin:
+      jwt-secret-base64: ${PLATFORM_ADMIN_JWT_SECRET_BASE64:}
+      token-ttl: ${PLATFORM_ADMIN_TOKEN_TTL:PT8H}
+      issuer: point-platform-admin
+      max-failed-attempts: ${PLATFORM_ADMIN_MAX_FAILED_ATTEMPTS:5}
+      lock-duration: ${PLATFORM_ADMIN_LOCK_DURATION:PT15M}
+  bootstrap:
+    admin:
+      enabled: ${PLATFORM_BOOTSTRAP_ADMIN_ENABLED:false}
+      username: ${PLATFORM_BOOTSTRAP_ADMIN_USERNAME:}
+      password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
+      real-name: ${PLATFORM_BOOTSTRAP_ADMIN_REAL_NAME:}
+      phone: ${PLATFORM_BOOTSTRAP_ADMIN_PHONE:}

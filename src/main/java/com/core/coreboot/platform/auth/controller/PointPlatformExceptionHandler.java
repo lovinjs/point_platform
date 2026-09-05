@@ -1,0 +1,78 @@
+package com.core.coreboot.platform.auth.controller;
+
+import com.core.coreboot.common.ApiRestResponse;
+import com.core.coreboot.exception.CustomException;
+import com.core.coreboot.exception.ExceptionEnum;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Order(Ordered.HIGHEST_PRECEDENCE)
+@RestControllerAdvice(basePackages = "com.core.coreboot.platform")
+public class PointPlatformExceptionHandler {
+
+    @ExceptionHandler(CustomException.class)
+    public ResponseEntity<ApiRestResponse<Object>> handleCustomException(CustomException ex) {
+        return ResponseEntity.status(statusFor(ex.getCode()))
+                .body(ApiRestResponse.error(ex.getCode(), ex.getMessage()));
+    }
+
+    @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
+    public ResponseEntity<ApiRestResponse<Object>> handleValidationException(Exception ex) {
+        BindingResult bindingResult = ex instanceof MethodArgumentNotValidException methodException
+                ? methodException.getBindingResult()
+                : ((BindException) ex).getBindingResult();
+        List<String> messages = new ArrayList<>();
+        for (ObjectError error : bindingResult.getAllErrors()) {
+            String field = error instanceof FieldError fieldError ? fieldError.getField() : "";
+            messages.add(field + error.getDefaultMessage());
+        }
+        String message = messages.isEmpty() ? ExceptionEnum.WRONG_PARA.getMsg() : String.join("; ", messages);
+        return ResponseEntity.badRequest()
+                .body(ApiRestResponse.error(ExceptionEnum.WRONG_PARA.getCode(), message));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiRestResponse<Object>> handleUnreadableRequest(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest().body(ApiRestResponse.error(ExceptionEnum.WRONG_PARA));
+    }
+
+    private HttpStatus statusFor(Integer code) {
+        if (code == null) {
+            return HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        if (code.equals(ExceptionEnum.PLATFORM_ADMIN_LOGIN_FAILED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_ADMIN_TOKEN_INVALID.getCode())) {
+            return HttpStatus.UNAUTHORIZED;
+        }
+        if (code.equals(ExceptionEnum.PLATFORM_ADMIN_ACCESS_DENIED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STORE_ACCESS_DENIED.getCode())) {
+            return HttpStatus.FORBIDDEN;
+        }
+        if (code.equals(ExceptionEnum.PLATFORM_ADMIN_SECURITY_NOT_CONFIGURED.getCode())) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
+        if (code.equals(ExceptionEnum.PLATFORM_CUSTOMER_NOT_FOUND.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STORE_NOT_FOUND.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_OPERATOR_NOT_FOUND.getCode())) {
+            return HttpStatus.NOT_FOUND;
+        }
+        if (code.equals(ExceptionEnum.PLATFORM_PAYMENT_REFERENCE_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_IDEMPOTENCY_CONFLICT.getCode())) {
+            return HttpStatus.CONFLICT;
+        }
+        return HttpStatus.BAD_REQUEST;
+    }
+}
