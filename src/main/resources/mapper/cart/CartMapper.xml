@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.core.coreboot.cart.mapper.CartMapper">
+  <select id="selectCartVOList" parameterType="java.lang.Integer" resultType="com.core.coreboot.cart.vo.CartVO">
+    select
+      c.id as id,
+      p.id as productId,
+      c.user_id as userId,
+      c.quantity as quantity,
+      p.price as price,
+      p.name as productName,
+      p.image as productImage
+    from t_cart c
+    left join t_product p on p.id = c.product_id and p.is_deleted = 0
+    where c.user_id = #{userId,jdbcType=INTEGER}
+  </select>
+</mapper>
