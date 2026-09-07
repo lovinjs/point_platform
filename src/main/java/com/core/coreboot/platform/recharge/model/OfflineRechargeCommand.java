@@ -10,6 +10,7 @@ public record OfflineRechargeCommand(
         PaymentMethod paymentMethod,
         String paymentReference,
         String idempotencyKey,
-        String remark
+        String remark,
+        String clientIp
 ) {
 }

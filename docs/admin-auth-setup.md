@@ -1,14 +1,8 @@
 # 后台认证初始化说明
 
-## 1. 执行 V2 增量脚本
+## 1. 确认 Flyway 迁移
 
-在已经执行 V1 的开发数据库中运行：
-
-~~~text
-src/main/resources/db/migration/V2__add_admin_auth_security_fields.sql
-~~~
-
-V2 只为 t_sys_user 增加登录失败次数、临时锁定、令牌版本和密码更新时间，不删除现有数据。
+项目已启用 Flyway。空库首次启动时会自动执行 V1～V3，无须手工执行 V2。启动成功后，在 `flyway_schema_history` 中确认 V2 已成功应用，再进行超级管理员初始化。
 
 ## 2. 生成后台 JWT 密钥
 

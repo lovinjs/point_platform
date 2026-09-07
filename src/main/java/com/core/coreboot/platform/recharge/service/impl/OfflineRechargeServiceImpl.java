@@ -15,14 +15,10 @@ import com.core.coreboot.platform.common.enums.PointLotStatus;
 import com.core.coreboot.platform.common.enums.RechargeChannel;
 import com.core.coreboot.platform.common.enums.RechargeOrderStatus;
 import com.core.coreboot.platform.common.enums.RoleCode;
-import com.core.coreboot.platform.common.enums.StoreStatus;
-import com.core.coreboot.platform.common.enums.SysUserStatus;
 import com.core.coreboot.platform.common.model.PointMoneyPolicy;
 import com.core.coreboot.platform.common.support.BusinessNoGenerator;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
-import com.core.coreboot.platform.merchant.entity.Store;
-import com.core.coreboot.platform.merchant.mapper.StoreMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.entity.PointLedger;
 import com.core.coreboot.platform.point.entity.PointLot;
@@ -34,9 +30,7 @@ import com.core.coreboot.platform.recharge.mapper.RechargeOrderMapper;
 import com.core.coreboot.platform.recharge.model.OfflineRechargeCommand;
 import com.core.coreboot.platform.recharge.model.OfflineRechargeResult;
 import com.core.coreboot.platform.recharge.service.OfflineRechargeService;
-import com.core.coreboot.platform.staff.entity.SysUser;
-import com.core.coreboot.platform.staff.mapper.StaffStoreAccessMapper;
-import com.core.coreboot.platform.staff.mapper.SysUserMapper;
+import com.core.coreboot.platform.staff.service.StaffStoreAuthorizationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -56,9 +50,7 @@ public class OfflineRechargeServiceImpl implements OfflineRechargeService {
     private static final int REMARK_MAX_LENGTH = 500;
 
     private final CustomerUserMapper customerUserMapper;
-    private final StoreMapper storeMapper;
-    private final SysUserMapper sysUserMapper;
-    private final StaffStoreAccessMapper staffStoreAccessMapper;
+    private final StaffStoreAuthorizationService staffStoreAuthorizationService;
     private final PointAccountMapper pointAccountMapper;
     private final RechargeOrderMapper rechargeOrderMapper;
     private final PointLotMapper pointLotMapper;
@@ -70,13 +62,12 @@ public class OfflineRechargeServiceImpl implements OfflineRechargeService {
     @Transactional(rollbackFor = Exception.class)
     public OfflineRechargeResult recharge(OfflineRechargeCommand command) {
         NormalizedRecharge normalized = validateAndNormalize(command);
+        RoleCode effectiveRole = validateParticipantsAndAccess(normalized);
 
         RechargeOrder existingOrder = findByIdempotencyKey(normalized.idempotencyKey());
         if (existingOrder != null) {
             return replay(existingOrder, normalized);
         }
-
-        RoleCode effectiveRole = validateParticipantsAndAccess(normalized);
 
         pointAccountMapper.ensureAccount(normalized.customerId());
         PointAccount account = pointAccountMapper.selectByCustomerIdForUpdate(normalized.customerId());
@@ -136,9 +127,11 @@ public class OfflineRechargeServiceImpl implements OfflineRechargeService {
             throw new CustomException(ExceptionEnum.PLATFORM_INVALID_REQUEST);
         }
         String remark = normalizeOptional(command.remark());
+        String clientIp = normalizeOptional(command.clientIp());
         if (paymentReference.length() > PAYMENT_REFERENCE_MAX_LENGTH
                 || idempotencyKey.length() > IDEMPOTENCY_KEY_MAX_LENGTH
-                || (remark != null && remark.length() > REMARK_MAX_LENGTH)) {
+                || (remark != null && remark.length() > REMARK_MAX_LENGTH)
+                || (clientIp != null && clientIp.length() > 45)) {
             throw new CustomException(ExceptionEnum.PLATFORM_INVALID_REQUEST);
         }
 
@@ -151,7 +144,8 @@ public class OfflineRechargeServiceImpl implements OfflineRechargeService {
                 command.paymentMethod(),
                 paymentReference,
                 idempotencyKey,
-                remark
+                remark,
+                clientIp
         );
     }
 
@@ -164,31 +158,10 @@ public class OfflineRechargeServiceImpl implements OfflineRechargeService {
             throw new CustomException(ExceptionEnum.PLATFORM_CUSTOMER_DISABLED);
         }
 
-        Store store = storeMapper.selectById(command.storeId());
-        if (store == null) {
-            throw new CustomException(ExceptionEnum.PLATFORM_STORE_NOT_FOUND);
-        }
-        if (store.getStatus() != StoreStatus.ACTIVE) {
-            throw new CustomException(ExceptionEnum.PLATFORM_STORE_UNAVAILABLE);
-        }
-
-        SysUser operator = sysUserMapper.selectById(command.operatorId());
-        if (operator == null) {
-            throw new CustomException(ExceptionEnum.PLATFORM_OPERATOR_NOT_FOUND);
-        }
-        if (operator.getStatus() != SysUserStatus.ACTIVE) {
-            throw new CustomException(ExceptionEnum.PLATFORM_OPERATOR_DISABLED);
-        }
-
-        String roleCode = staffStoreAccessMapper.findEffectiveRoleCode(command.operatorId(), command.storeId());
-        if (roleCode == null) {
-            throw new CustomException(ExceptionEnum.PLATFORM_STORE_ACCESS_DENIED);
-        }
-        try {
-            return RoleCode.valueOf(roleCode);
-        } catch (IllegalArgumentException ex) {
-            throw new CustomException(ExceptionEnum.PLATFORM_STORE_ACCESS_DENIED);
-        }
+        return staffStoreAuthorizationService.requireActiveStoreAccess(
+                command.operatorId(),
+                command.storeId()
+        );
     }
 
     private RechargeOrder findByIdempotencyKey(String idempotencyKey) {
@@ -307,6 +280,7 @@ public class OfflineRechargeServiceImpl implements OfflineRechargeService {
                 .requestId(command.idempotencyKey())
                 .afterSnapshot(writeJson(snapshot))
                 .remark(command.remark())
+                .clientIp(command.clientIp())
                 .build();
     }
 
@@ -359,7 +333,8 @@ public class OfflineRechargeServiceImpl implements OfflineRechargeService {
             PaymentMethod paymentMethod,
             String paymentReference,
             String idempotencyKey,
-            String remark
+            String remark,
+            String clientIp
     ) {
     }
 }

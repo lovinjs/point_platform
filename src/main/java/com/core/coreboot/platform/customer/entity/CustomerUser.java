@@ -24,6 +24,7 @@ public class CustomerUser {
     private String avatarUrl;
     private CustomerStatus status;
     private LocalDateTime lastLoginTime;
+    private Integer tokenVersion;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

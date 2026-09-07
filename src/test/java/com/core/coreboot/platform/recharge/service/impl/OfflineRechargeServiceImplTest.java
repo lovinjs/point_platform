@@ -11,12 +11,9 @@ import com.core.coreboot.platform.common.enums.PaymentMethod;
 import com.core.coreboot.platform.common.enums.PointLedgerType;
 import com.core.coreboot.platform.common.enums.RechargeChannel;
 import com.core.coreboot.platform.common.enums.RechargeOrderStatus;
-import com.core.coreboot.platform.common.enums.StoreStatus;
-import com.core.coreboot.platform.common.enums.SysUserStatus;
+import com.core.coreboot.platform.common.enums.RoleCode;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
-import com.core.coreboot.platform.merchant.entity.Store;
-import com.core.coreboot.platform.merchant.mapper.StoreMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.entity.PointLedger;
 import com.core.coreboot.platform.point.entity.PointLot;
@@ -27,9 +24,7 @@ import com.core.coreboot.platform.recharge.entity.RechargeOrder;
 import com.core.coreboot.platform.recharge.mapper.RechargeOrderMapper;
 import com.core.coreboot.platform.recharge.model.OfflineRechargeCommand;
 import com.core.coreboot.platform.recharge.model.OfflineRechargeResult;
-import com.core.coreboot.platform.staff.entity.SysUser;
-import com.core.coreboot.platform.staff.mapper.StaffStoreAccessMapper;
-import com.core.coreboot.platform.staff.mapper.SysUserMapper;
+import com.core.coreboot.platform.staff.service.StaffStoreAuthorizationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,11 +46,7 @@ class OfflineRechargeServiceImplTest {
     @Mock
     private CustomerUserMapper customerUserMapper;
     @Mock
-    private StoreMapper storeMapper;
-    @Mock
-    private SysUserMapper sysUserMapper;
-    @Mock
-    private StaffStoreAccessMapper staffStoreAccessMapper;
+    private StaffStoreAuthorizationService staffStoreAuthorizationService;
     @Mock
     private PointAccountMapper pointAccountMapper;
     @Mock
@@ -73,9 +64,7 @@ class OfflineRechargeServiceImplTest {
     void setUp() {
         service = new OfflineRechargeServiceImpl(
                 customerUserMapper,
-                storeMapper,
-                sysUserMapper,
-                staffStoreAccessMapper,
+                staffStoreAuthorizationService,
                 pointAccountMapper,
                 rechargeOrderMapper,
                 pointLotMapper,
@@ -89,15 +78,12 @@ class OfflineRechargeServiceImplTest {
     void shouldCompleteOfflineRechargeInOneWriteFlow() {
         OfflineRechargeCommand command = command();
         CustomerUser customer = CustomerUser.builder().id(1L).status(CustomerStatus.ACTIVE).build();
-        Store store = Store.builder().id(2L).status(StoreStatus.ACTIVE).build();
-        SysUser operator = SysUser.builder().id(3L).status(SysUserStatus.ACTIVE).build();
         PointAccount account = PointAccount.builder().id(4L).customerId(1L).availablePoints(20L).version(0).build();
 
         when(rechargeOrderMapper.selectOne(ArgumentMatchers.<Wrapper<RechargeOrder>>any())).thenReturn(null);
         when(customerUserMapper.selectById(1L)).thenReturn(customer);
-        when(storeMapper.selectById(2L)).thenReturn(store);
-        when(sysUserMapper.selectById(3L)).thenReturn(operator);
-        when(staffStoreAccessMapper.findEffectiveRoleCode(3L, 2L)).thenReturn("CLERK");
+        when(staffStoreAuthorizationService.requireActiveStoreAccess(3L, 2L))
+                .thenReturn(RoleCode.CLERK);
         when(pointAccountMapper.selectByCustomerIdForUpdate(1L)).thenReturn(account);
         when(rechargeOrderMapper.selectCount(ArgumentMatchers.<Wrapper<RechargeOrder>>any())).thenReturn(0L);
         when(rechargeOrderMapper.insert(any(RechargeOrder.class))).thenAnswer(invocation -> {
@@ -134,6 +120,10 @@ class OfflineRechargeServiceImplTest {
         assertEquals(10L, ledgerCaptor.getValue().getDeltaPoints());
         assertEquals(30L, ledgerCaptor.getValue().getBalanceAfter());
         assertEquals(PointLedgerType.RECHARGE, ledgerCaptor.getValue().getLedgerType());
+
+        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogMapper).insert(auditCaptor.capture());
+        assertEquals("127.0.0.1", auditCaptor.getValue().getClientIp());
     }
 
     @Test
@@ -153,6 +143,7 @@ class OfflineRechargeServiceImplTest {
                 .remark("柜台核对")
                 .orderStatus(RechargeOrderStatus.COMPLETED)
                 .build();
+        allowActiveClerk();
         when(rechargeOrderMapper.selectOne(ArgumentMatchers.<Wrapper<RechargeOrder>>any())).thenReturn(existing);
 
         OfflineRechargeResult result = service.recharge(command());
@@ -178,6 +169,7 @@ class OfflineRechargeServiceImplTest {
                 .remark("柜台核对")
                 .orderStatus(RechargeOrderStatus.COMPLETED)
                 .build();
+        allowActiveClerk();
         when(rechargeOrderMapper.selectOne(ArgumentMatchers.<Wrapper<RechargeOrder>>any())).thenReturn(existing);
 
         CustomException exception = assertThrows(CustomException.class, () -> service.recharge(command()));
@@ -189,7 +181,7 @@ class OfflineRechargeServiceImplTest {
     void shouldRejectNonWholeYuanAmountBeforeDatabaseAccess() {
         OfflineRechargeCommand command = new OfflineRechargeCommand(
                 1L, 2L, 3L, 199L, PaymentMethod.BANK_TRANSFER,
-                "PLATFORM-TX-001", "request-001", null
+                "PLATFORM-TX-001", "request-001", null, "127.0.0.1"
         );
 
         CustomException exception = assertThrows(CustomException.class, () -> service.recharge(command));
@@ -200,19 +192,22 @@ class OfflineRechargeServiceImplTest {
 
     @Test
     void shouldRejectOperatorWithoutStoreAccess() {
-        when(rechargeOrderMapper.selectOne(ArgumentMatchers.<Wrapper<RechargeOrder>>any())).thenReturn(null);
         when(customerUserMapper.selectById(1L))
                 .thenReturn(CustomerUser.builder().id(1L).status(CustomerStatus.ACTIVE).build());
-        when(storeMapper.selectById(2L))
-                .thenReturn(Store.builder().id(2L).status(StoreStatus.ACTIVE).build());
-        when(sysUserMapper.selectById(3L))
-                .thenReturn(SysUser.builder().id(3L).status(SysUserStatus.ACTIVE).build());
-        when(staffStoreAccessMapper.findEffectiveRoleCode(3L, 2L)).thenReturn(null);
+        when(staffStoreAuthorizationService.requireActiveStoreAccess(3L, 2L))
+                .thenThrow(new CustomException(ExceptionEnum.PLATFORM_STORE_ACCESS_DENIED));
 
         CustomException exception = assertThrows(CustomException.class, () -> service.recharge(command()));
 
         assertEquals(ExceptionEnum.PLATFORM_STORE_ACCESS_DENIED.getCode(), exception.getCode());
         verify(pointAccountMapper, never()).ensureAccount(any());
+    }
+
+    private void allowActiveClerk() {
+        when(customerUserMapper.selectById(1L))
+                .thenReturn(CustomerUser.builder().id(1L).status(CustomerStatus.ACTIVE).build());
+        when(staffStoreAuthorizationService.requireActiveStoreAccess(3L, 2L))
+                .thenReturn(RoleCode.CLERK);
     }
 
     private OfflineRechargeCommand command() {
@@ -224,7 +219,8 @@ class OfflineRechargeServiceImplTest {
                 PaymentMethod.BANK_TRANSFER,
                 "PLATFORM-TX-001",
                 "request-001",
-                "柜台核对"
+                "柜台核对",
+                "127.0.0.1"
         );
     }
 }

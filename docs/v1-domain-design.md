@@ -193,9 +193,12 @@ phone 允许先为空，后续微信 H5 再完成手机号绑定。手机号建�
 - consume_pin_hash
 - failed_count
 - locked_until
+- pin_updated_time
 - update_time
 
 密码只保存哈希值，不能保存明文。
+
+消费密码领域服务已实现首次设置、修改、校验、连续输错锁定和安全审计。微信 H5 登录与手机号绑定已完成，下一阶段开放消费密码 H5 接口；接口中的 customerId 必须来自登录凭证，不能接受前端自行指定。
 
 #### sys_user
 
@@ -539,7 +542,9 @@ POST /api/v1/admin/settlements/{settlementNo}/mark-paid
 ### 6.2 客户端接口
 
 ~~~text
-GET  /api/v1/h5/me
+GET  /api/v1/customer/me
+POST /api/v1/customer/phone/verification-codes
+PUT  /api/v1/customer/phone
 GET  /api/v1/h5/points/balance
 GET  /api/v1/h5/points/ledger
 GET  /api/v1/h5/recharge-orders
@@ -548,7 +553,7 @@ GET  /api/v1/h5/consumption-orders/pending
 POST /api/v1/h5/consumption-orders/{orderNo}/confirm
 ~~~
 
-微信登录接口暂时只预留，不在本阶段实现。未来 H5 和小程序共用 customer_user，只增加不同的 customer_identity。
+微信 H5 登录和短信验证码绑定手机号已经实现。H5 和未来的小程序共用 customer_user，只增加不同的 customer_identity。
 
 涉及写入的接口建议支持 Idempotency-Key，后端将其保存到对应订单或流水表，并建立唯一约束。
 
@@ -625,9 +630,10 @@ V1 不要求用户手动刷新页面，采用“客户已登录 H5 + 短轮询�
 
 ### 第五步：实现线下业务闭环
 
-- 后台查询客户。
-- 线下充值。
-- 后台创建待客户确认的消费订单。
+- 后台查询客户。（已实现）
+- 查询当前员工可操作的有效门店。（已实现）
+- 线下充值。（已实现）
+- 后台创建待客户确认的消费订单。（已实现）
 - 客户 PIN 确认。
 - 结算单生成和查询。
 

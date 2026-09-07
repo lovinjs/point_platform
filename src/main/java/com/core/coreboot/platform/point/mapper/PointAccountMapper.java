@@ -23,6 +23,14 @@ public interface PointAccountMapper extends BaseMapper<PointAccount> {
             """)
     PointAccount selectByCustomerIdForUpdate(@Param("customerId") Long customerId);
 
+    @Select("""
+            SELECT id, customer_id, available_points, version, create_time, update_time
+            FROM t_point_account
+            WHERE customer_id = #{customerId}
+            LIMIT 1
+            """)
+    PointAccount selectByCustomerId(@Param("customerId") Long customerId);
+
     @Update("""
             UPDATE t_point_account
             SET available_points = available_points + #{points},

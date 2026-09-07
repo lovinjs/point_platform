@@ -7,10 +7,22 @@ spring:
     url: ${DB_URL:jdbc:p6spy:mysql://127.0.0.1:3306/core_boot?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&useSSL=false&rewriteBatchedStatements=true}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
-  redis:
-    host: ${REDIS_HOST:127.0.0.1}
-    port: ${REDIS_PORT:6379}
-    password: ${REDIS_PWD:123456}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    encoding: UTF-8
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    validate-migration-naming: true
+    out-of-order: false
+    clean-disabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PWD:123456}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:PT3S}
+      timeout: ${REDIS_READ_TIMEOUT:PT3S}
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
@@ -42,7 +54,38 @@ qrcode:
     ip: 127.0.0.1
 
 platform:
+  wechat:
+    h5:
+      enabled: ${PLATFORM_WECHAT_H5_ENABLED:false}
+      app-id: ${PLATFORM_WECHAT_H5_APP_ID:}
+      app-secret: ${PLATFORM_WECHAT_H5_APP_SECRET:}
+      callback-url: ${PLATFORM_WECHAT_H5_CALLBACK_URL:}
+      h5-base-url: ${PLATFORM_H5_BASE_URL:}
+      scope: ${PLATFORM_WECHAT_H5_SCOPE:snsapi_userinfo}
+      state-ttl: ${PLATFORM_WECHAT_H5_STATE_TTL:PT5M}
+      connect-timeout: ${PLATFORM_WECHAT_CONNECT_TIMEOUT:PT5S}
+      read-timeout: ${PLATFORM_WECHAT_READ_TIMEOUT:PT8S}
+  consumption:
+    pending-ttl: ${PLATFORM_CONSUMPTION_PENDING_TTL:PT5M}
+  phone-verification:
+    mode: ${PLATFORM_PHONE_VERIFICATION_MODE:DISABLED}
+    code-ttl: ${PLATFORM_PHONE_VERIFICATION_CODE_TTL:PT5M}
+    resend-interval: ${PLATFORM_PHONE_VERIFICATION_RESEND_INTERVAL:PT1M}
+    max-verify-attempts: ${PLATFORM_PHONE_VERIFICATION_MAX_ATTEMPTS:5}
+    customer-hourly-limit: ${PLATFORM_PHONE_VERIFICATION_CUSTOMER_HOURLY_LIMIT:5}
+    customer-daily-limit: ${PLATFORM_PHONE_VERIFICATION_CUSTOMER_DAILY_LIMIT:10}
+    phone-hourly-limit: ${PLATFORM_PHONE_VERIFICATION_PHONE_HOURLY_LIMIT:5}
+    phone-daily-limit: ${PLATFORM_PHONE_VERIFICATION_PHONE_DAILY_LIMIT:10}
+    global-daily-limit: ${PLATFORM_PHONE_VERIFICATION_GLOBAL_DAILY_LIMIT:5000}
   security:
+    customer-pin:
+      max-failed-attempts: ${PLATFORM_CUSTOMER_PIN_MAX_FAILED_ATTEMPTS:5}
+      lock-duration: ${PLATFORM_CUSTOMER_PIN_LOCK_DURATION:PT30M}
+    customer:
+      jwt-secret-base64: ${PLATFORM_CUSTOMER_JWT_SECRET_BASE64:}
+      token-ttl: ${PLATFORM_CUSTOMER_TOKEN_TTL:PT2H}
+      login-ticket-ttl: ${PLATFORM_CUSTOMER_LOGIN_TICKET_TTL:PT1M}
+      issuer: point-platform-customer
     admin:
       jwt-secret-base64: ${PLATFORM_ADMIN_JWT_SECRET_BASE64:}
       token-ttl: ${PLATFORM_ADMIN_TOKEN_TTL:PT8H}
