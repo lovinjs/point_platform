@@ -10,6 +10,9 @@
 - `GET /api/v1/customer/me`：查询当前客户资料、消费密码状态和实时积分余额。
 - `GET /api/v1/customer/consumption-orders/pending`：查询当前客户唯一的待确认消费订单。
 - `POST /api/v1/customer/consumption-orders/{orderNo}/confirm`：客户本人输入消费密码确认并完成扣款。
+- `GET /api/v1/customer/points/ledger`：分页查询当前客户积分流水。
+- `GET /api/v1/customer/recharge-orders`：分页查询当前客户充值订单。
+- `GET /api/v1/customer/consumption-orders`：分页查询当前客户消费订单。
 - OAuth `state` 和登录票据都只可使用一次；Redis 键只保存随机值的 SHA-256 摘要。
 - 登录回调响应与 H5 页面均使用 `no-referrer`，降低短期票据经 Referer 泄漏的风险。登录票据默认仅存活 1 分钟，生产环境还应避免在反向代理访问日志中记录 `loginTicket` 查询参数。
 - Swagger 会收录上述接口。两个微信 GET 接口返回的是 302 跳转，不是普通 JSON 数据。
@@ -56,4 +59,4 @@ AppSecret 和 JWT 密钥只放在服务端运行环境，不能提交到 Git，�
 
 ## 后续能力
 
-手机号绑定、消费密码配置和本人确认消费已经实现，联调方式分别见 `docs/customer-phone-binding.md`、`docs/customer-consume-pin-core.md` 和 `docs/customer-consumption-confirm-api.md`。后续再实现客户积分流水与历史订单查询、充值退款和门店结算。
+手机号绑定、消费密码配置、本人确认消费及账单记录已经实现。账单联调见 `docs/customer-transaction-query-api.md`；后续再实现充值退款和门店结算。
