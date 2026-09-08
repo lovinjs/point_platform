@@ -32,4 +32,13 @@ public interface StoreMapper extends BaseMapper<Store> {
             ORDER BY s.store_name, s.id
             """)
     List<Store> selectAccessibleActiveStores(@Param("userId") Long userId);
+
+    @Select("""
+            SELECT id, merchant_id, store_code, store_name, address, contact_phone,
+                   status, create_time, update_time
+            FROM t_store
+            WHERE id = #{storeId}
+            FOR UPDATE
+            """)
+    Store selectByIdForUpdate(@Param("storeId") Long storeId);
 }

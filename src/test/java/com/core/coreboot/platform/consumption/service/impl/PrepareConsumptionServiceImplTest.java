@@ -14,6 +14,8 @@ import com.core.coreboot.platform.consumption.mapper.ConsumptionOrderMapper;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionCommand;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionResult;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
+import com.core.coreboot.platform.customer.entity.CustomerSecurity;
+import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.mapper.PointAccountMapper;
@@ -46,6 +48,8 @@ class PrepareConsumptionServiceImplTest {
     @Mock
     private CustomerUserMapper customerUserMapper;
     @Mock
+    private CustomerSecurityMapper customerSecurityMapper;
+    @Mock
     private StaffStoreAuthorizationService staffStoreAuthorizationService;
     @Mock
     private PointAccountMapper pointAccountMapper;
@@ -63,6 +67,7 @@ class PrepareConsumptionServiceImplTest {
         Clock clock = Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
         service = new PrepareConsumptionServiceImpl(
                 customerUserMapper,
+                customerSecurityMapper,
                 staffStoreAuthorizationService,
                 pointAccountMapper,
                 consumptionOrderMapper,
@@ -168,9 +173,45 @@ class PrepareConsumptionServiceImplTest {
         verify(consumptionOrderMapper, never()).insert(any(ConsumptionOrder.class));
     }
 
+    @Test
+    void shouldRejectCustomerWithoutBoundPhone() {
+        when(customerUserMapper.selectById(1L))
+                .thenReturn(CustomerUser.builder()
+                        .id(1L)
+                        .status(CustomerStatus.ACTIVE)
+                        .build());
+
+        CustomException exception = assertThrows(CustomException.class, () -> service.prepare(command()));
+
+        assertEquals(ExceptionEnum.PLATFORM_PHONE_NOT_BOUND.getCode(), exception.getCode());
+        verify(customerSecurityMapper, never()).selectById(any());
+        verify(staffStoreAuthorizationService, never()).requireActiveStoreAccess(any(), any());
+    }
+
+    @Test
+    void shouldRejectCustomerWithoutConsumePin() {
+        when(customerUserMapper.selectById(1L))
+                .thenReturn(CustomerUser.builder()
+                        .id(1L)
+                        .phone("13800138000")
+                        .status(CustomerStatus.ACTIVE)
+                        .build());
+
+        CustomException exception = assertThrows(CustomException.class, () -> service.prepare(command()));
+
+        assertEquals(ExceptionEnum.PLATFORM_CONSUME_PIN_NOT_SET.getCode(), exception.getCode());
+        verify(staffStoreAuthorizationService, never()).requireActiveStoreAccess(any(), any());
+    }
+
     private void allowActiveCustomerAndStore() {
         when(customerUserMapper.selectById(1L))
-                .thenReturn(CustomerUser.builder().id(1L).status(CustomerStatus.ACTIVE).build());
+                .thenReturn(CustomerUser.builder()
+                        .id(1L)
+                        .phone("13800138000")
+                        .status(CustomerStatus.ACTIVE)
+                        .build());
+        when(customerSecurityMapper.selectById(1L))
+                .thenReturn(CustomerSecurity.builder().customerId(1L).consumePinHash("hash").build());
         when(staffStoreAuthorizationService.requireActiveStoreAccess(3L, 2L))
                 .thenReturn(RoleCode.CLERK);
     }

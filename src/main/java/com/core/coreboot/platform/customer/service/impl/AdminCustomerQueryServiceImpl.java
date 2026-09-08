@@ -3,6 +3,8 @@ package com.core.coreboot.platform.customer.service.impl;
 import com.core.coreboot.exception.CustomException;
 import com.core.coreboot.exception.ExceptionEnum;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
+import com.core.coreboot.platform.customer.entity.CustomerSecurity;
+import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.customer.model.AdminCustomerView;
 import com.core.coreboot.platform.customer.service.AdminCustomerQueryService;
@@ -19,6 +21,7 @@ public class AdminCustomerQueryServiceImpl implements AdminCustomerQueryService 
     private static final Pattern PHONE_PATTERN = Pattern.compile("\\+?[0-9]{6,20}");
 
     private final CustomerUserMapper customerUserMapper;
+    private final CustomerSecurityMapper customerSecurityMapper;
     private final PointAccountMapper pointAccountMapper;
 
     @Override
@@ -30,6 +33,7 @@ public class AdminCustomerQueryServiceImpl implements AdminCustomerQueryService 
         }
 
         PointAccount account = pointAccountMapper.selectByCustomerId(customer.getId());
+        CustomerSecurity security = customerSecurityMapper.selectById(customer.getId());
         long availablePoints = account == null || account.getAvailablePoints() == null
                 ? 0L
                 : account.getAvailablePoints();
@@ -41,6 +45,9 @@ public class AdminCustomerQueryServiceImpl implements AdminCustomerQueryService 
                 customer.getPhone(),
                 customer.getNickname(),
                 customer.getStatus(),
+                security != null
+                        && security.getConsumePinHash() != null
+                        && !security.getConsumePinHash().isBlank(),
                 availablePoints
         );
     }

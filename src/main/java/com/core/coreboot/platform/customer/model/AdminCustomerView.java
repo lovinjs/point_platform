@@ -7,6 +7,7 @@ public record AdminCustomerView(
         String phone,
         String nickname,
         CustomerStatus status,
+        boolean consumePinConfigured,
         long availablePoints
 ) {
 }

@@ -19,6 +19,8 @@ import com.core.coreboot.platform.consumption.model.PrepareConsumptionCommand;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionResult;
 import com.core.coreboot.platform.consumption.service.PrepareConsumptionService;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
+import com.core.coreboot.platform.customer.entity.CustomerSecurity;
+import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.mapper.PointAccountMapper;
@@ -43,6 +45,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
     private static final Duration MAXIMUM_PENDING_TTL = Duration.ofMinutes(30);
 
     private final CustomerUserMapper customerUserMapper;
+    private final CustomerSecurityMapper customerSecurityMapper;
     private final StaffStoreAuthorizationService staffStoreAuthorizationService;
     private final PointAccountMapper pointAccountMapper;
     private final ConsumptionOrderMapper consumptionOrderMapper;
@@ -54,6 +57,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
     @Autowired
     public PrepareConsumptionServiceImpl(
             CustomerUserMapper customerUserMapper,
+            CustomerSecurityMapper customerSecurityMapper,
             StaffStoreAuthorizationService staffStoreAuthorizationService,
             PointAccountMapper pointAccountMapper,
             ConsumptionOrderMapper consumptionOrderMapper,
@@ -63,6 +67,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
     ) {
         this(
                 customerUserMapper,
+                customerSecurityMapper,
                 staffStoreAuthorizationService,
                 pointAccountMapper,
                 consumptionOrderMapper,
@@ -75,6 +80,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
 
     PrepareConsumptionServiceImpl(
             CustomerUserMapper customerUserMapper,
+            CustomerSecurityMapper customerSecurityMapper,
             StaffStoreAuthorizationService staffStoreAuthorizationService,
             PointAccountMapper pointAccountMapper,
             ConsumptionOrderMapper consumptionOrderMapper,
@@ -84,6 +90,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
             Clock clock
     ) {
         this.customerUserMapper = customerUserMapper;
+        this.customerSecurityMapper = customerSecurityMapper;
         this.staffStoreAuthorizationService = staffStoreAuthorizationService;
         this.pointAccountMapper = pointAccountMapper;
         this.consumptionOrderMapper = consumptionOrderMapper;
@@ -181,6 +188,15 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
         }
         if (customer.getStatus() != CustomerStatus.ACTIVE) {
             throw new CustomException(ExceptionEnum.PLATFORM_CUSTOMER_DISABLED);
+        }
+        if (customer.getPhone() == null || customer.getPhone().isBlank()) {
+            throw new CustomException(ExceptionEnum.PLATFORM_PHONE_NOT_BOUND);
+        }
+        CustomerSecurity security = customerSecurityMapper.selectById(command.customerId());
+        if (security == null
+                || security.getConsumePinHash() == null
+                || security.getConsumePinHash().isBlank()) {
+            throw new CustomException(ExceptionEnum.PLATFORM_CONSUME_PIN_NOT_SET);
         }
         return staffStoreAuthorizationService.requireActiveStoreAccess(
                 command.operatorId(),

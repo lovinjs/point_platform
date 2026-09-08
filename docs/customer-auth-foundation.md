@@ -8,6 +8,8 @@
 - `GET /api/v1/h5/auth/wechat/callback`：校验并消费 `state`、换取微信身份、创建或匹配客户，最后携带一次性登录票据跳回 H5。票据放在 H5 顶层查询参数 `loginTicket` 中，兼容部分微信 WebView 丢失 URL fragment 的情况；H5 启动后会立即兑换并清理地址栏。
 - `POST /api/v1/h5/auth/session/exchange`：使用一次性票据换取客户访问令牌。
 - `GET /api/v1/customer/me`：查询当前客户资料、消费密码状态和实时积分余额。
+- `GET /api/v1/customer/consumption-orders/pending`：查询当前客户唯一的待确认消费订单。
+- `POST /api/v1/customer/consumption-orders/{orderNo}/confirm`：客户本人输入消费密码确认并完成扣款。
 - OAuth `state` 和登录票据都只可使用一次；Redis 键只保存随机值的 SHA-256 摘要。
 - 登录回调响应与 H5 页面均使用 `no-referrer`，降低短期票据经 Referer 泄漏的风险。登录票据默认仅存活 1 分钟，生产环境还应避免在反向代理访问日志中记录 `loginTicket` 查询参数。
 - Swagger 会收录上述接口。两个微信 GET 接口返回的是 302 跳转，不是普通 JSON 数据。
@@ -52,6 +54,6 @@ PLATFORM_CUSTOMER_JWT_SECRET_BASE64=<独立的客户 JWT 密钥>
 
 AppSecret 和 JWT 密钥只放在服务端运行环境，不能提交到 Git，也不能放进 UniApp。正式部署时必须改成已备案且配置到微信公众平台的 HTTPS 域名，并同步修改两个 URL 环境变量。
 
-## 下一步
+## 后续能力
 
-手机号绑定已经实现，联调方式见 `docs/customer-phone-binding.md`。下一阶段开放客户消费密码 H5 接口，再实现待确认消费订单查询与本人确认扣款。
+手机号绑定、消费密码配置和本人确认消费已经实现，联调方式分别见 `docs/customer-phone-binding.md`、`docs/customer-consume-pin-core.md` 和 `docs/customer-consumption-confirm-api.md`。后续再实现客户积分流水与历史订单查询、充值退款和门店结算。

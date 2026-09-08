@@ -198,7 +198,7 @@ phone 允许先为空，后续微信 H5 再完成手机号绑定。手机号建�
 
 密码只保存哈希值，不能保存明文。
 
-消费密码领域服务已实现首次设置、修改、校验、连续输错锁定和安全审计。微信 H5 登录与手机号绑定已完成，下一阶段开放消费密码 H5 接口；接口中的 customerId 必须来自登录凭证，不能接受前端自行指定。
+消费密码领域服务和客户接口已实现首次设置、修改、校验、连续输错锁定和安全审计。微信 H5 登录与手机号绑定已完成；接口中的 customerId 来自登录凭证，不能接受前端自行指定。
 
 #### sys_user
 
@@ -545,15 +545,18 @@ POST /api/v1/admin/settlements/{settlementNo}/mark-paid
 GET  /api/v1/customer/me
 POST /api/v1/customer/phone/verification-codes
 PUT  /api/v1/customer/phone
-GET  /api/v1/h5/points/balance
-GET  /api/v1/h5/points/ledger
-GET  /api/v1/h5/recharge-orders
-GET  /api/v1/h5/consumption-orders
-GET  /api/v1/h5/consumption-orders/pending
-POST /api/v1/h5/consumption-orders/{orderNo}/confirm
+GET  /api/v1/customer/security/consume-pin/status
+POST /api/v1/customer/security/consume-pin
+PUT  /api/v1/customer/security/consume-pin
+GET  /api/v1/customer/points/balance
+GET  /api/v1/customer/points/ledger
+GET  /api/v1/customer/recharge-orders
+GET  /api/v1/customer/consumption-orders
+GET  /api/v1/customer/consumption-orders/pending
+POST /api/v1/customer/consumption-orders/{orderNo}/confirm
 ~~~
 
-微信 H5 登录和短信验证码绑定手机号已经实现。H5 和未来的小程序共用 customer_user，只增加不同的 customer_identity。
+微信 H5 登录、短信验证码绑定手机号和消费密码配置已经实现。除渠道登录过程外，客户业务接口统一使用 `/api/v1/customer/**`，由 H5 和未来小程序共用；不同渠道只增加各自的 customer_identity。
 
 涉及写入的接口建议支持 Idempotency-Key，后端将其保存到对应订单或流水表，并建立唯一约束。
 
@@ -564,7 +567,7 @@ V1 不要求用户手动刷新页面，采用“客户已登录 H5 + 短轮询�
 1. 员工在后台按手机号选择客户并填写消费积分，调用 prepare 接口。
 2. 后端创建 PENDING_CONFIRM 消费订单，写入客户、门店、积分数量、确认方式和过期时间。
 3. 客户打开消费确认页后，H5 调用 pending 接口查询自己的待确认订单。
-4. 页面处于前台时，每 2～3 秒自动查询一次；发现新订单后弹出门店、消费积分和扣除后余额。
+4. 页面处于前台时，每 3 秒自动查询一次；发现新订单后展示门店、消费金额、消费积分和剩余确认时间。
 5. 客户输入消费密码。
 6. 后端校验订单归属、消费密码、有效期和订单状态后完成消费。
 7. 消费完成、取消或过期后，H5 停止继续展示该订单。
@@ -584,13 +587,13 @@ V1 不要求用户手动刷新页面，采用“客户已登录 H5 + 短轮询�
 1. 校验客户、门店、员工权限。
 2. 锁定 point_account。
 3. 校验可用余额。
-4. 校验客户 PIN。
-5. 锁定并扣减 point_lot。
-6. 创建或完成 consumption_order。
+4. 在独立事务中校验客户 PIN，并持久化失败次数或锁定状态。
+5. 重新锁定 consumption_order，校验归属、状态、有效期和门店状态。
+6. 按充值时间 FIFO 锁定并扣减 point_lot。
 7. 写入 point_lot_usage。
 8. 更新 point_account。
-9. 写入 point_ledger。
-10. 写入 audit_log。
+9. 完成 consumption_order。
+10. 写入 point_ledger 和 audit_log。
 
 任何一步失败都回滚。Redis 可以用于限流和短期消费确认，但不能替代数据库事务和账户行锁。
 
@@ -634,7 +637,7 @@ V1 不要求用户手动刷新页面，采用“客户已登录 H5 + 短轮询�
 - 查询当前员工可操作的有效门店。（已实现）
 - 线下充值。（已实现）
 - 后台创建待客户确认的消费订单。（已实现）
-- 客户 PIN 确认。
+- 客户 PIN 确认、积分批次扣减和消费流水。（已实现）
 - 结算单生成和查询。
 
 uni-app H5 和 Vben 管理界面在核心服务稳定后接入；消费二维码与微信支付作为后续能力单独增加。

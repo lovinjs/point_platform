@@ -26,6 +26,20 @@ class CustomerSecurityIntegrationTest {
     }
 
     @Test
+    void shouldRejectConsumePinStatusWithoutBearerToken() throws Exception {
+        mockMvc.perform(get("/api/v1/customer/security/consume-pin/status"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(30034));
+    }
+
+    @Test
+    void shouldRejectPendingConsumptionQueryWithoutBearerToken() throws Exception {
+        mockMvc.perform(get("/api/v1/customer/consumption-orders/pending"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(30034));
+    }
+
+    @Test
     void shouldAllowTicketExchangeEndpointThroughSecurityAndValidateRequest() throws Exception {
         mockMvc.perform(post("/api/v1/h5/auth/session/exchange")
                         .contentType(MediaType.APPLICATION_JSON)

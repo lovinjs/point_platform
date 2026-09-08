@@ -4,6 +4,8 @@ import com.core.coreboot.exception.CustomException;
 import com.core.coreboot.exception.ExceptionEnum;
 import com.core.coreboot.platform.common.enums.CustomerStatus;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
+import com.core.coreboot.platform.customer.entity.CustomerSecurity;
+import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.customer.model.AdminCustomerView;
 import com.core.coreboot.platform.point.entity.PointAccount;
@@ -25,13 +27,19 @@ class AdminCustomerQueryServiceImplTest {
     @Mock
     private CustomerUserMapper customerUserMapper;
     @Mock
+    private CustomerSecurityMapper customerSecurityMapper;
+    @Mock
     private PointAccountMapper pointAccountMapper;
 
     private AdminCustomerQueryServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new AdminCustomerQueryServiceImpl(customerUserMapper, pointAccountMapper);
+        service = new AdminCustomerQueryServiceImpl(
+                customerUserMapper,
+                customerSecurityMapper,
+                pointAccountMapper
+        );
     }
 
     @Test
@@ -45,11 +53,14 @@ class AdminCustomerQueryServiceImplTest {
         when(customerUserMapper.selectByPhone("13800138000")).thenReturn(customer);
         when(pointAccountMapper.selectByCustomerId(10L))
                 .thenReturn(PointAccount.builder().customerId(10L).availablePoints(88L).build());
+        when(customerSecurityMapper.selectById(10L))
+                .thenReturn(CustomerSecurity.builder().customerId(10L).consumePinHash("hash").build());
 
         AdminCustomerView result = service.findByPhone(" 13800138000 ");
 
         assertEquals(10L, result.customerId());
         assertEquals(88L, result.availablePoints());
+        assertEquals(true, result.consumePinConfigured());
         assertEquals(CustomerStatus.ACTIVE, result.status());
     }
 

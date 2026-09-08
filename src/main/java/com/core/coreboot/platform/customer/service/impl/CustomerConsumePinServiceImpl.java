@@ -98,7 +98,7 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
     @Transactional(rollbackFor = Exception.class)
     public void setInitialPin(Long customerId, String newPin, String clientIp) {
         requireStrongPin(newPin);
-        requireActiveCustomer(customerId);
+        requirePhoneBound(requireActiveCustomer(customerId));
         LocalDateTime now = LocalDateTime.now(clock);
         CustomerSecurity security = customerSecurityMapper.selectByCustomerIdForUpdate(customerId);
         if (security != null && security.getConsumePinHash() != null) {
@@ -128,7 +128,7 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = CustomException.class)
     public void changePin(Long customerId, String currentPin, String newPin, String clientIp) {
         requireStrongPin(newPin);
-        requireActiveCustomer(customerId);
+        requirePhoneBound(requireActiveCustomer(customerId));
         int maxFailedAttempts = validatedMaxFailedAttempts();
         Duration lockDuration = validatedLockDuration();
         LocalDateTime now = LocalDateTime.now(clock);
@@ -178,7 +178,7 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
         return security;
     }
 
-    private void requireActiveCustomer(Long customerId) {
+    private CustomerUser requireActiveCustomer(Long customerId) {
         if (customerId == null || customerId <= 0) {
             throw new CustomException(ExceptionEnum.PLATFORM_INVALID_REQUEST);
         }
@@ -188,6 +188,13 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
         }
         if (customer.getStatus() != CustomerStatus.ACTIVE) {
             throw new CustomException(ExceptionEnum.PLATFORM_CUSTOMER_DISABLED);
+        }
+        return customer;
+    }
+
+    private void requirePhoneBound(CustomerUser customer) {
+        if (customer.getPhone() == null || customer.getPhone().isBlank()) {
+            throw new CustomException(ExceptionEnum.PLATFORM_PHONE_NOT_BOUND);
         }
     }
 

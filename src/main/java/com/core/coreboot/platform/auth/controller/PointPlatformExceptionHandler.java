@@ -107,8 +107,12 @@ public class PointPlatformExceptionHandler {
         }
         if (code.equals(ExceptionEnum.PLATFORM_CUSTOMER_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_STORE_NOT_FOUND.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_OPERATOR_NOT_FOUND.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_OPERATOR_NOT_FOUND.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_FOUND.getCode())) {
             return HttpStatus.NOT_FOUND;
+        }
+        if (code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_EXPIRED.getCode())) {
+            return HttpStatus.GONE;
         }
         if (code.equals(ExceptionEnum.PLATFORM_PAYMENT_REFERENCE_USED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_IDEMPOTENCY_CONFLICT.getCode())
@@ -118,9 +122,12 @@ public class PointPlatformExceptionHandler {
                 || code.equals(ExceptionEnum.PLATFORM_CONSUME_PIN_ALREADY_SET.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CONSUME_PIN_NOT_SET.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CONSUME_PIN_UNCHANGED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_PHONE_NOT_BOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_PHONE_ALREADY_BOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_PHONE_ALREADY_USED.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_PHONE_BIND_FAILED.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_PHONE_BIND_FAILED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_PENDING.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_CONFIRM_FAILED.getCode())) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;

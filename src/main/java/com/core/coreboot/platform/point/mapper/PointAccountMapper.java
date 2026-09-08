@@ -39,4 +39,14 @@ public interface PointAccountMapper extends BaseMapper<PointAccount> {
             WHERE id = #{accountId}
             """)
     int increaseBalance(@Param("accountId") Long accountId, @Param("points") Long points);
+
+    @Update("""
+            UPDATE t_point_account
+            SET available_points = available_points - #{points},
+                version = version + 1,
+                update_time = CURRENT_TIMESTAMP
+            WHERE id = #{accountId}
+              AND available_points >= #{points}
+            """)
+    int decreaseBalance(@Param("accountId") Long accountId, @Param("points") Long points);
 }

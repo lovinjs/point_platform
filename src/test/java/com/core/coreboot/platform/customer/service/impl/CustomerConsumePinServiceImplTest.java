@@ -106,6 +106,21 @@ class CustomerConsumePinServiceImplTest {
     }
 
     @Test
+    void shouldRejectSettingPinBeforePhoneIsBound() {
+        when(customerUserMapper.selectById(1L))
+                .thenReturn(CustomerUser.builder().id(1L).status(CustomerStatus.ACTIVE).build());
+
+        CustomException exception = assertThrows(
+                CustomException.class,
+                () -> service.setInitialPin(1L, CURRENT_PIN, "192.0.2.31")
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_PHONE_NOT_BOUND.getCode(), exception.getCode());
+        verify(customerSecurityMapper, never()).selectByCustomerIdForUpdate(any());
+        verify(customerSecurityMapper, never()).insert(any(CustomerSecurity.class));
+    }
+
+    @Test
     void shouldRejectSettingPinTwice() {
         allowActiveCustomer();
         when(customerSecurityMapper.selectByCustomerIdForUpdate(1L)).thenReturn(security(CURRENT_PIN, 0, null));
@@ -222,7 +237,11 @@ class CustomerConsumePinServiceImplTest {
 
     private void allowActiveCustomer() {
         when(customerUserMapper.selectById(1L))
-                .thenReturn(CustomerUser.builder().id(1L).status(CustomerStatus.ACTIVE).build());
+                .thenReturn(CustomerUser.builder()
+                        .id(1L)
+                        .phone("13800138000")
+                        .status(CustomerStatus.ACTIVE)
+                        .build());
     }
 
     private CustomerSecurity security(String pin, int failedCount, LocalDateTime lockedUntil) {

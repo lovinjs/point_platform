@@ -20,7 +20,7 @@ GET /api/v1/admin/customers?phone=13800138000
 Authorization: Bearer <accessToken>
 ~~~
 
-手机号只支持精确查询，不提供模糊搜索或客户全量列表。返回客户基本信息、状态和当前平台积分余额。尚未创建积分账户的客户返回余额 `0`。
+手机号只支持精确查询，不提供模糊搜索或客户全量列表。返回客户基本信息、状态、当前平台积分余额和 `consumePinConfigured`。尚未创建积分账户的客户返回余额 `0`；`consumePinConfigured = false` 时可以充值，但还不能发起消费订单。
 
 ## 3. 完成线下充值
 
