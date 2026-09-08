@@ -81,7 +81,8 @@ public class PointPlatformExceptionHandler {
         }
         if (code.equals(ExceptionEnum.PLATFORM_ADMIN_ACCESS_DENIED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_STORE_ACCESS_DENIED.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_CUSTOMER_ACCESS_DENIED.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_CUSTOMER_ACCESS_DENIED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_ACCESS_DENIED.getCode())) {
             return HttpStatus.FORBIDDEN;
         }
         if (code.equals(ExceptionEnum.PLATFORM_ADMIN_SECURITY_NOT_CONFIGURED.getCode())
@@ -109,7 +110,8 @@ public class PointPlatformExceptionHandler {
                 || code.equals(ExceptionEnum.PLATFORM_STORE_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_OPERATOR_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_RECHARGE_ORDER_NOT_FOUND.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_FOUND.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_FOUND.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_NOT_FOUND.getCode())) {
             return HttpStatus.NOT_FOUND;
         }
         if (code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_EXPIRED.getCode())) {
@@ -132,7 +134,12 @@ public class PointPlatformExceptionHandler {
                 || code.equals(ExceptionEnum.PLATFORM_REFUND_REFERENCE_USED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_RECHARGE_REFUND_WRITE_FAILED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_PENDING.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_CONFIRM_FAILED.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_CONFIRM_FAILED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_NO_ELIGIBLE_ORDERS.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_STATE_INVALID.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_PAYMENT_REFERENCE_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_WRITE_FAILED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID.getCode())) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;

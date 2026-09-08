@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface ConsumptionOrderMapper extends BaseMapper<ConsumptionOrder> {
 
@@ -99,4 +100,46 @@ public interface ConsumptionOrderMapper extends BaseMapper<ConsumptionOrder> {
             @Param("orderId") Long orderId,
             @Param("completedTime") LocalDateTime completedTime
     );
+
+    @Select("""
+            SELECT id, order_no, customer_id, store_id, consume_points, gross_amount_cent,
+                   platform_fee_rate_bps, platform_fee_cent, store_payable_cent,
+                   verification_mode, expires_time, order_status, operator_id,
+                   confirmed_time, completed_time, reversed_by, reversed_time, reversal_reason,
+                   settlement_status, idempotency_key, remark, create_time, update_time
+            FROM t_consumption_order
+            WHERE order_status = 'COMPLETED'
+              AND settlement_status = 'NOT_INCLUDED'
+              AND completed_time >= #{startTime}
+              AND completed_time < #{endTimeExclusive}
+            ORDER BY store_id, completed_time, id
+            FOR UPDATE
+            """)
+    List<ConsumptionOrder> selectEligibleForSettlement(
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive
+    );
+
+    @Update("""
+            UPDATE t_consumption_order
+            SET settlement_status = 'INCLUDED',
+                update_time = CURRENT_TIMESTAMP
+            WHERE id = #{orderId}
+              AND order_status = 'COMPLETED'
+              AND settlement_status = 'NOT_INCLUDED'
+            """)
+    int markIncludedInSettlement(@Param("orderId") Long orderId);
+
+    @Update("""
+            UPDATE t_consumption_order o
+            INNER JOIN t_store_settlement_item i
+                ON i.consumption_order_id = o.id
+               AND i.item_type = 'CONSUMPTION'
+            SET o.settlement_status = 'SETTLED',
+                o.update_time = CURRENT_TIMESTAMP
+            WHERE i.settlement_id = #{settlementId}
+              AND o.order_status = 'COMPLETED'
+              AND o.settlement_status = 'INCLUDED'
+            """)
+    int markSettlementItemsSettled(@Param("settlementId") Long settlementId);
 }

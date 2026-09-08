@@ -533,6 +533,7 @@ POST /api/v1/admin/consumption-orders/prepare
 POST /api/v1/admin/consumption-orders/{orderNo}/cancel
 GET  /api/v1/admin/consumption-orders
 
+POST /api/v1/admin/settlement-periods/{periodCode}/generate
 GET  /api/v1/admin/settlements
 GET  /api/v1/admin/settlements/{settlementNo}
 POST /api/v1/admin/settlements/{settlementNo}/confirm

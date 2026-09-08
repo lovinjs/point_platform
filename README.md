@@ -18,6 +18,7 @@ http://localhost:8888/swagger-ui/index.html
 - 客户消费密码接口与核心设计：[`docs/customer-consume-pin-core.md`](docs/customer-consume-pin-core.md)
 - 客户待确认消费与确认扣款联调：[`docs/customer-consumption-confirm-api.md`](docs/customer-consumption-confirm-api.md)
 - 客户账单与订单记录联调：[`docs/customer-transaction-query-api.md`](docs/customer-transaction-query-api.md)
+- 门店自然月结算联调：[`docs/admin-settlement-api.md`](docs/admin-settlement-api.md)
 - 客户认证基础：[`docs/customer-auth-foundation.md`](docs/customer-auth-foundation.md)
 - 客户手机号绑定：[`docs/customer-phone-binding.md`](docs/customer-phone-binding.md)
 - 数据库版本管理：[`docs/database-migrations.md`](docs/database-migrations.md)
@@ -25,6 +26,7 @@ http://localhost:8888/swagger-ui/index.html
 - V1 表结构：[`src/main/resources/db/migration/V1__init_point_platform.sql`](src/main/resources/db/migration/V1__init_point_platform.sql)
 - V2 后台认证字段：[`src/main/resources/db/migration/V2__add_admin_auth_security_fields.sql`](src/main/resources/db/migration/V2__add_admin_auth_security_fields.sql)
 - V3 客户认证字段：[`src/main/resources/db/migration/V3__add_customer_auth_security_fields.sql`](src/main/resources/db/migration/V3__add_customer_auth_security_fields.sql)
+- V4 结算付款参考号唯一约束：[`src/main/resources/db/migration/V4__add_settlement_payment_reference_unique.sql`](src/main/resources/db/migration/V4__add_settlement_payment_reference_unique.sql)
 - 新业务代码统一放在 `com.core.coreboot.platform` 包下，旧商城模块暂时保留。
 
-当前项目已启用 Flyway，后端启动时自动校验并执行尚未应用的迁移。已经由 Flyway 执行过的脚本禁止修改；本地首次接管原手工建库时，请按数据库版本管理文档重建为空库，不要再次手工导入 V1～V3。
+当前项目已启用 Flyway，后端启动时自动校验并执行尚未应用的迁移。已经由 Flyway 执行过的脚本禁止修改；本地首次接管原手工建库时，请按数据库版本管理文档重建为空库，不要再次手工导入 Flyway 脚本。
