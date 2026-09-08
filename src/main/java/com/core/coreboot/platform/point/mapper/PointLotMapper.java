@@ -40,4 +40,28 @@ public interface PointLotMapper extends BaseMapper<PointLot> {
             @Param("customerId") Long customerId,
             @Param("usedPoints") Long usedPoints
     );
+
+    @Select("""
+            SELECT id, customer_id, source_recharge_order_id, total_points, remaining_points,
+                   lot_status, create_time, update_time
+            FROM t_point_lot
+            WHERE source_recharge_order_id = #{rechargeOrderId}
+            LIMIT 1
+            FOR UPDATE
+            """)
+    PointLot selectByRechargeOrderIdForUpdate(@Param("rechargeOrderId") Long rechargeOrderId);
+
+    @Update("""
+            UPDATE t_point_lot
+            SET lot_status = 'REFUNDED',
+                update_time = CURRENT_TIMESTAMP
+            WHERE id = #{lotId}
+              AND customer_id = #{customerId}
+              AND lot_status = 'AVAILABLE'
+              AND total_points = remaining_points
+            """)
+    int markUntouchedLotRefunded(
+            @Param("lotId") Long lotId,
+            @Param("customerId") Long customerId
+    );
 }

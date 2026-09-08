@@ -108,6 +108,7 @@ public class PointPlatformExceptionHandler {
         if (code.equals(ExceptionEnum.PLATFORM_CUSTOMER_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_STORE_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_OPERATOR_NOT_FOUND.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_RECHARGE_ORDER_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_FOUND.getCode())) {
             return HttpStatus.NOT_FOUND;
         }
@@ -126,6 +127,10 @@ public class PointPlatformExceptionHandler {
                 || code.equals(ExceptionEnum.PLATFORM_PHONE_ALREADY_BOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_PHONE_ALREADY_USED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_PHONE_BIND_FAILED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_RECHARGE_NOT_REFUNDABLE.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_RECHARGE_POINTS_ALREADY_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_REFUND_REFERENCE_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_RECHARGE_REFUND_WRITE_FAILED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_PENDING.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_CONFIRM_FAILED.getCode())) {
             return HttpStatus.CONFLICT;

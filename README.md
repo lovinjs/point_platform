@@ -13,6 +13,7 @@ http://localhost:8888/swagger-ui/index.html
 - 领域设计：[`docs/v1-domain-design.md`](docs/v1-domain-design.md)
 - 后台认证初始化：[`docs/admin-auth-setup.md`](docs/admin-auth-setup.md)
 - 后台线下充值接口联调：[`docs/admin-offline-recharge-api.md`](docs/admin-offline-recharge-api.md)
+- 后台未消费充值整笔退款：[`docs/admin-recharge-refund-api.md`](docs/admin-recharge-refund-api.md)
 - 后台待确认消费订单联调：[`docs/admin-consumption-prepare-api.md`](docs/admin-consumption-prepare-api.md)
 - 客户消费密码接口与核心设计：[`docs/customer-consume-pin-core.md`](docs/customer-consume-pin-core.md)
 - 客户待确认消费与确认扣款联调：[`docs/customer-consumption-confirm-api.md`](docs/customer-consumption-confirm-api.md)
