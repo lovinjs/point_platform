@@ -143,7 +143,11 @@ public class PointPlatformExceptionHandler {
                 || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_MERCHANT_UNAVAILABLE.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_STORE_CODE_USED.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_STORE_MANAGEMENT_WRITE_FAILED.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_STORE_MANAGEMENT_WRITE_FAILED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_CODE_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_CREDIT_CODE_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_STATUS_INVALID.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_MANAGEMENT_WRITE_FAILED.getCode())) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;

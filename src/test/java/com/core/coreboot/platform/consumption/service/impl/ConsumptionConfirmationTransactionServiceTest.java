@@ -6,6 +6,7 @@ import com.core.coreboot.platform.audit.entity.AuditLog;
 import com.core.coreboot.platform.audit.mapper.AuditLogMapper;
 import com.core.coreboot.platform.common.enums.ConsumptionOrderStatus;
 import com.core.coreboot.platform.common.enums.ConsumptionVerificationMode;
+import com.core.coreboot.platform.common.enums.MerchantStatus;
 import com.core.coreboot.platform.common.enums.PointLedgerBusinessType;
 import com.core.coreboot.platform.common.enums.PointLedgerType;
 import com.core.coreboot.platform.common.enums.StoreStatus;
@@ -13,6 +14,8 @@ import com.core.coreboot.platform.consumption.entity.ConsumptionOrder;
 import com.core.coreboot.platform.consumption.mapper.ConsumptionOrderMapper;
 import com.core.coreboot.platform.consumption.model.ConsumptionConfirmationOutcome;
 import com.core.coreboot.platform.merchant.entity.Store;
+import com.core.coreboot.platform.merchant.entity.Merchant;
+import com.core.coreboot.platform.merchant.mapper.MerchantMapper;
 import com.core.coreboot.platform.merchant.mapper.StoreMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.entity.PointLedger;
@@ -56,6 +59,8 @@ class ConsumptionConfirmationTransactionServiceTest {
     @Mock
     private StoreMapper storeMapper;
     @Mock
+    private MerchantMapper merchantMapper;
+    @Mock
     private PointLotMapper pointLotMapper;
     @Mock
     private PointLotUsageMapper pointLotUsageMapper;
@@ -73,6 +78,7 @@ class ConsumptionConfirmationTransactionServiceTest {
                 pointAccountMapper,
                 consumptionOrderMapper,
                 storeMapper,
+                merchantMapper,
                 pointLotMapper,
                 pointLotUsageMapper,
                 pointLedgerMapper,
@@ -85,6 +91,7 @@ class ConsumptionConfirmationTransactionServiceTest {
     @Test
     void shouldDeductAccountAndFifoLotsThenCompleteOrder() {
         allowAccountOrderAndStore(150L, pendingOrder(NOW.plusMinutes(5)), StoreStatus.ACTIVE);
+        allowActiveMerchant();
         when(pointLotMapper.selectAvailableByCustomerIdForUpdate(1L)).thenReturn(List.of(
                 lot(100L, 60L),
                 lot(101L, 90L)
@@ -161,6 +168,7 @@ class ConsumptionConfirmationTransactionServiceTest {
     @Test
     void shouldRejectInsufficientCurrentBalance() {
         allowAccountOrderAndStore(99L, pendingOrder(NOW.plusMinutes(5)), StoreStatus.ACTIVE);
+        allowActiveMerchant();
 
         CustomException exception = assertThrows(
                 CustomException.class,
@@ -175,6 +183,7 @@ class ConsumptionConfirmationTransactionServiceTest {
     @Test
     void shouldRejectInconsistentLotBalanceBeforeWriting() {
         allowAccountOrderAndStore(150L, pendingOrder(NOW.plusMinutes(5)), StoreStatus.ACTIVE);
+        allowActiveMerchant();
         when(pointLotMapper.selectAvailableByCustomerIdForUpdate(1L))
                 .thenReturn(List.of(lot(100L, 99L)));
 
@@ -185,6 +194,24 @@ class ConsumptionConfirmationTransactionServiceTest {
 
         assertEquals(ExceptionEnum.PLATFORM_POINT_ACCOUNT_ERROR.getCode(), exception.getCode());
         verify(pointLotMapper, never()).consumePoints(any(), any(), any());
+        verify(pointAccountMapper, never()).decreaseBalance(any(), any());
+    }
+
+    @Test
+    void shouldRejectPendingOrderWhenMerchantIsSuspended() {
+        allowAccountOrderAndStore(150L, pendingOrder(NOW.plusMinutes(5)), StoreStatus.ACTIVE);
+        when(merchantMapper.selectByIdForUpdate(4L)).thenReturn(Merchant.builder()
+                .id(4L)
+                .status(MerchantStatus.SUSPENDED)
+                .build());
+
+        CustomException exception = assertThrows(
+                CustomException.class,
+                () -> service.confirmOrReplay(1L, "CSM123", null)
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_MERCHANT_UNAVAILABLE.getCode(), exception.getCode());
+        verify(pointLotMapper, never()).selectAvailableByCustomerIdForUpdate(any());
         verify(pointAccountMapper, never()).decreaseBalance(any(), any());
     }
 
@@ -201,8 +228,16 @@ class ConsumptionConfirmationTransactionServiceTest {
         when(consumptionOrderMapper.selectByOrderNoForUpdate("CSM123")).thenReturn(order);
         when(storeMapper.selectByIdForUpdate(2L)).thenReturn(Store.builder()
                 .id(2L)
+                .merchantId(4L)
                 .storeName("测试门店")
                 .status(storeStatus)
+                .build());
+    }
+
+    private void allowActiveMerchant() {
+        when(merchantMapper.selectByIdForUpdate(4L)).thenReturn(Merchant.builder()
+                .id(4L)
+                .status(MerchantStatus.ACTIVE)
                 .build());
     }
 

@@ -13,6 +13,7 @@ public interface StoreMapper extends BaseMapper<Store> {
             SELECT DISTINCT s.id, s.merchant_id, s.store_code, s.store_name, s.address,
                             s.contact_phone, s.status, s.create_time, s.update_time
             FROM t_store s
+            INNER JOIN t_merchant m ON m.id = s.merchant_id AND m.status = 'ACTIVE'
             WHERE s.status = 'ACTIVE'
               AND (
                     EXISTS (

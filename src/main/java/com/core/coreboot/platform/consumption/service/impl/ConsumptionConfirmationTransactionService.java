@@ -7,6 +7,7 @@ import com.core.coreboot.platform.audit.mapper.AuditLogMapper;
 import com.core.coreboot.platform.common.enums.AuditActorType;
 import com.core.coreboot.platform.common.enums.ConsumptionOrderStatus;
 import com.core.coreboot.platform.common.enums.ConsumptionVerificationMode;
+import com.core.coreboot.platform.common.enums.MerchantStatus;
 import com.core.coreboot.platform.common.enums.PointLedgerBusinessType;
 import com.core.coreboot.platform.common.enums.PointLedgerType;
 import com.core.coreboot.platform.common.enums.StoreStatus;
@@ -16,6 +17,8 @@ import com.core.coreboot.platform.consumption.mapper.ConsumptionOrderMapper;
 import com.core.coreboot.platform.consumption.model.ConsumptionConfirmationOutcome;
 import com.core.coreboot.platform.consumption.model.ConsumptionConfirmationResult;
 import com.core.coreboot.platform.merchant.entity.Store;
+import com.core.coreboot.platform.merchant.entity.Merchant;
+import com.core.coreboot.platform.merchant.mapper.MerchantMapper;
 import com.core.coreboot.platform.merchant.mapper.StoreMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.entity.PointLedger;
@@ -43,6 +46,7 @@ public class ConsumptionConfirmationTransactionService {
     private final PointAccountMapper pointAccountMapper;
     private final ConsumptionOrderMapper consumptionOrderMapper;
     private final StoreMapper storeMapper;
+    private final MerchantMapper merchantMapper;
     private final PointLotMapper pointLotMapper;
     private final PointLotUsageMapper pointLotUsageMapper;
     private final PointLedgerMapper pointLedgerMapper;
@@ -55,6 +59,7 @@ public class ConsumptionConfirmationTransactionService {
             PointAccountMapper pointAccountMapper,
             ConsumptionOrderMapper consumptionOrderMapper,
             StoreMapper storeMapper,
+            MerchantMapper merchantMapper,
             PointLotMapper pointLotMapper,
             PointLotUsageMapper pointLotUsageMapper,
             PointLedgerMapper pointLedgerMapper,
@@ -65,6 +70,7 @@ public class ConsumptionConfirmationTransactionService {
                 pointAccountMapper,
                 consumptionOrderMapper,
                 storeMapper,
+                merchantMapper,
                 pointLotMapper,
                 pointLotUsageMapper,
                 pointLedgerMapper,
@@ -78,6 +84,7 @@ public class ConsumptionConfirmationTransactionService {
             PointAccountMapper pointAccountMapper,
             ConsumptionOrderMapper consumptionOrderMapper,
             StoreMapper storeMapper,
+            MerchantMapper merchantMapper,
             PointLotMapper pointLotMapper,
             PointLotUsageMapper pointLotUsageMapper,
             PointLedgerMapper pointLedgerMapper,
@@ -88,6 +95,7 @@ public class ConsumptionConfirmationTransactionService {
         this.pointAccountMapper = pointAccountMapper;
         this.consumptionOrderMapper = consumptionOrderMapper;
         this.storeMapper = storeMapper;
+        this.merchantMapper = merchantMapper;
         this.pointLotMapper = pointLotMapper;
         this.pointLotUsageMapper = pointLotUsageMapper;
         this.pointLedgerMapper = pointLedgerMapper;
@@ -135,6 +143,10 @@ public class ConsumptionConfirmationTransactionService {
         }
         if (store.getStatus() != StoreStatus.ACTIVE) {
             throw new CustomException(ExceptionEnum.PLATFORM_STORE_UNAVAILABLE);
+        }
+        Merchant merchant = merchantMapper.selectByIdForUpdate(store.getMerchantId());
+        if (merchant == null || merchant.getStatus() != MerchantStatus.ACTIVE) {
+            throw new CustomException(ExceptionEnum.PLATFORM_MERCHANT_UNAVAILABLE);
         }
 
         long consumePoints = requirePositivePoints(order.getConsumePoints());

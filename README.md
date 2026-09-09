@@ -1,14 +1,32 @@
 # core-boot
 
-## 1 swagger 文档
+## 1 构建与测试
+
+项目要求 Java 21，并通过 Maven Wrapper 固定使用 Maven 3.9.6，不依赖电脑全局安装的 Maven。
+
+Windows：
+
+```powershell
+.\mvnw.cmd test
+```
+
+Linux / macOS：
+
+```shell
+./mvnw test
+```
+
+首次运行会自动下载指定版本的 Maven，之后使用本地缓存。开发、持续集成和服务器构建均应优先使用 Wrapper 命令。
+
+## 2 swagger 文档
 
 http://localhost:8888/swagger-ui/index.html
 
-## 2 环境变量
+## 3 环境变量
 
 在项目根目录下新建 `.env` 文件，配置环境变量，具体参考项目配置文件 `application.yml`，配合 `EnvFile` 插件实现勾选不同开发环境
 
-## 3 积分平台重构
+## 4 积分平台重构
 
 - 领域设计：[`docs/v1-domain-design.md`](docs/v1-domain-design.md)
 - 后台认证初始化：[`docs/admin-auth-setup.md`](docs/admin-auth-setup.md)
