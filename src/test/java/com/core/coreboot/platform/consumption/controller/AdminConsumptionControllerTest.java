@@ -5,9 +5,11 @@ import com.core.coreboot.platform.common.enums.ConsumptionOrderStatus;
 import com.core.coreboot.platform.common.enums.ConsumptionVerificationMode;
 import com.core.coreboot.platform.common.enums.RoleCode;
 import com.core.coreboot.platform.common.enums.SysUserStatus;
+import com.core.coreboot.platform.consumption.model.AdminConsumptionOrderStatusView;
 import com.core.coreboot.platform.consumption.model.AdminPrepareConsumptionRequest;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionCommand;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionResult;
+import com.core.coreboot.platform.consumption.service.AdminConsumptionOrderQueryService;
 import com.core.coreboot.platform.consumption.service.PrepareConsumptionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +31,8 @@ import static org.mockito.Mockito.when;
 class AdminConsumptionControllerTest {
     @Mock
     private PrepareConsumptionService prepareConsumptionService;
+    @Mock
+    private AdminConsumptionOrderQueryService orderQueryService;
     @InjectMocks
     private AdminConsumptionController controller;
 
@@ -66,5 +70,40 @@ class AdminConsumptionControllerTest {
         assertEquals(7L, command.operatorId());
         assertEquals("prepare-100", command.idempotencyKey());
         assertEquals("192.0.2.30", command.clientIp());
+    }
+
+    @Test
+    void shouldQueryOrderStatusForAuthenticatedOperator() {
+        AdminUserPrincipal principal = new AdminUserPrincipal(
+                7L,
+                "demo.clerk",
+                "hash",
+                "演示店员",
+                SysUserStatus.ACTIVE,
+                null,
+                0,
+                Set.of(RoleCode.CLERK),
+                Set.of(20L)
+        );
+        when(orderQueryService.getStatus(7L, "CSM-100"))
+                .thenReturn(new AdminConsumptionOrderStatusView(
+                        "CSM-100",
+                        10L,
+                        20L,
+                        30L,
+                        3_000L,
+                        ConsumptionVerificationMode.CUSTOMER_PIN,
+                        ConsumptionOrderStatus.PENDING_CONFIRM,
+                        "现场消费",
+                        LocalDateTime.now().plusMinutes(5),
+                        null,
+                        null,
+                        LocalDateTime.now()
+                ));
+
+        var response = controller.status("CSM-100", principal);
+
+        assertEquals("CSM-100", response.getData().orderNo());
+        verify(orderQueryService).getStatus(7L, "CSM-100");
     }
 }
