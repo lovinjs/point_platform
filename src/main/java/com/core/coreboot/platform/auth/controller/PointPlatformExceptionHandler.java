@@ -82,7 +82,8 @@ public class PointPlatformExceptionHandler {
         if (code.equals(ExceptionEnum.PLATFORM_ADMIN_ACCESS_DENIED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_STORE_ACCESS_DENIED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CUSTOMER_ACCESS_DENIED.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_ACCESS_DENIED.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_ACCESS_DENIED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STAFF_PROTECTED_ACCOUNT.getCode())) {
             return HttpStatus.FORBIDDEN;
         }
         if (code.equals(ExceptionEnum.PLATFORM_ADMIN_SECURITY_NOT_CONFIGURED.getCode())
@@ -147,7 +148,12 @@ public class PointPlatformExceptionHandler {
                 || code.equals(ExceptionEnum.PLATFORM_MERCHANT_CODE_USED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_MERCHANT_CREDIT_CODE_USED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_MERCHANT_STATUS_INVALID.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_MANAGEMENT_WRITE_FAILED.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_MANAGEMENT_WRITE_FAILED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STAFF_USERNAME_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STAFF_PHONE_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STAFF_STATUS_INVALID.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STAFF_PASSWORD_UNCHANGED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STAFF_MANAGEMENT_WRITE_FAILED.getCode())) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;
