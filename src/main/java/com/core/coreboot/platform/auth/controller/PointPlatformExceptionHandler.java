@@ -108,6 +108,7 @@ public class PointPlatformExceptionHandler {
         }
         if (code.equals(ExceptionEnum.PLATFORM_CUSTOMER_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_STORE_NOT_FOUND.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_OPERATOR_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_RECHARGE_ORDER_NOT_FOUND.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_CONSUMPTION_ORDER_NOT_FOUND.getCode())
@@ -139,7 +140,10 @@ public class PointPlatformExceptionHandler {
                 || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_STATE_INVALID.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_PAYMENT_REFERENCE_USED.getCode())
                 || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_WRITE_FAILED.getCode())
-                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID.getCode())) {
+                || code.equals(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_MERCHANT_UNAVAILABLE.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STORE_CODE_USED.getCode())
+                || code.equals(ExceptionEnum.PLATFORM_STORE_MANAGEMENT_WRITE_FAILED.getCode())) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;
