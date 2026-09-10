@@ -47,24 +47,49 @@ public class CustomerPhoneServiceImpl implements CustomerPhoneService {
             throw new CustomException(ExceptionEnum.PLATFORM_PHONE_ALREADY_BOUND);
         }
 
+        return dispatchVerificationCode(customerId, normalizedPhone);
+    }
+
+    @Override
+    public PhoneVerificationDispatchResult requestBoundPhoneVerificationCode(Long customerId) {
+        CustomerUser customer = requireActiveCustomer(customerId, false);
+        return dispatchVerificationCode(customerId, requireBoundPhone(customer));
+    }
+
+    @Override
+    public void verifyBoundPhoneVerificationCode(Long customerId, String verificationCode) {
+        String normalizedCode = normalizeCode(verificationCode);
+        CustomerUser customer = requireActiveCustomer(customerId, false);
+        String phone = requireBoundPhone(customer);
+        validateProperties();
+        verificationCodeStore.verifyAndConsume(
+                customerId,
+                phone,
+                normalizedCode,
+                properties.getMaxVerifyAttempts()
+        );
+    }
+
+    private PhoneVerificationDispatchResult dispatchVerificationCode(Long customerId, String phone) {
+
         validateProperties();
         verificationSender.validateReady();
-        verificationCodeStore.reserveSend(customerId, normalizedPhone, properties);
+        verificationCodeStore.reserveSend(customerId, phone, properties);
 
         String verificationCode = newVerificationCode();
         verificationCodeStore.saveCode(
                 customerId,
-                normalizedPhone,
+                phone,
                 verificationCode,
                 properties.getCodeTtl()
         );
         try {
-            verificationSender.send(normalizedPhone, verificationCode, properties.getCodeTtl());
+            verificationSender.send(phone, verificationCode, properties.getCodeTtl());
         } catch (CustomException ex) {
-            invalidateAfterSendFailure(customerId, normalizedPhone);
+            invalidateAfterSendFailure(customerId, phone);
             throw ex;
         } catch (RuntimeException ex) {
-            invalidateAfterSendFailure(customerId, normalizedPhone);
+            invalidateAfterSendFailure(customerId, phone);
             log.error("手机号验证码发送器执行失败", ex);
             throw new CustomException(ExceptionEnum.PLATFORM_SMS_SEND_FAILED);
         }
@@ -175,6 +200,14 @@ public class CustomerPhoneServiceImpl implements CustomerPhoneService {
 
     private String normalizeNullable(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String requireBoundPhone(CustomerUser customer) {
+        String phone = normalizeNullable(customer.getPhone());
+        if (phone == null) {
+            throw new CustomException(ExceptionEnum.PLATFORM_PHONE_NOT_BOUND);
+        }
+        return normalizePhone(phone);
     }
 
     private String newVerificationCode() {

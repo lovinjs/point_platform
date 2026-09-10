@@ -72,3 +72,22 @@ Authorization: Bearer <accessToken>
 ~~~
 
 后台令牌默认有效 8 小时。连续登录失败默认 5 次后锁定 15 分钟。每次请求都会重新加载账号状态、角色、门店范围和 token_version。
+
+## 5. 当前账号修改密码
+
+超级管理员、店长和店员都可以在个人中心验证当前密码后修改自己的登录密码：
+
+~~~http
+PUT /api/v1/admin/auth/password
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "currentPassword": "<当前密码>",
+  "newPassword": "<新的强密码>"
+}
+~~~
+
+新密码仍须满足 12～128 位以及大小写字母、数字、特殊字符要求。修改成功会递增账号的 `token_version`，使当前及其他设备上的原登录凭证全部失效，后台前端随后退出并要求使用新密码重新登录。该操作会写入安全审计，但不会记录密码明文或哈希。
+
+员工管理中的“重置员工密码”与此接口相互独立，当前仍只允许超级管理员执行。

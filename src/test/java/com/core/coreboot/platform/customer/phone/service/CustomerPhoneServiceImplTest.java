@@ -80,6 +80,43 @@ class CustomerPhoneServiceImplTest {
     }
 
     @Test
+    void shouldSendCodeToBoundPhoneWithoutAcceptingPhoneFromClient() {
+        when(customerUserMapper.selectById(CUSTOMER_ID)).thenReturn(activeCustomer(PHONE));
+
+        var result = service.requestBoundPhoneVerificationCode(CUSTOMER_ID);
+
+        assertEquals(300L, result.expiresInSeconds());
+        verify(verificationCodeStore).reserveSend(CUSTOMER_ID, PHONE, properties);
+        verify(verificationSender).send(
+                org.mockito.ArgumentMatchers.eq(PHONE),
+                org.mockito.ArgumentMatchers.matches("\\d{6}"),
+                org.mockito.ArgumentMatchers.eq(properties.getCodeTtl())
+        );
+    }
+
+    @Test
+    void shouldVerifyCodeAgainstCurrentBoundPhone() {
+        when(customerUserMapper.selectById(CUSTOMER_ID)).thenReturn(activeCustomer(PHONE));
+
+        service.verifyBoundPhoneVerificationCode(CUSTOMER_ID, "825391");
+
+        verify(verificationCodeStore).verifyAndConsume(CUSTOMER_ID, PHONE, "825391", 5);
+    }
+
+    @Test
+    void shouldRejectBoundPhoneVerificationWhenPhoneIsMissing() {
+        when(customerUserMapper.selectById(CUSTOMER_ID)).thenReturn(activeCustomer(null));
+
+        CustomException exception = assertThrows(
+                CustomException.class,
+                () -> service.requestBoundPhoneVerificationCode(CUSTOMER_ID)
+        );
+
+        assertEquals(30052, exception.getCode());
+        verify(verificationCodeStore, never()).reserveSend(any(), any(), any());
+    }
+
+    @Test
     void shouldBindVerifiedPhoneAndWriteMaskedAudit() {
         CustomerAccountView profile = new CustomerAccountView(
                 CUSTOMER_ID, "测试用户", null, "138****8000", true, false, 0L

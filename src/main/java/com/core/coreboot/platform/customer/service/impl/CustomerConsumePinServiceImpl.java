@@ -6,13 +6,16 @@ import com.core.coreboot.platform.audit.entity.AuditLog;
 import com.core.coreboot.platform.audit.mapper.AuditLogMapper;
 import com.core.coreboot.platform.common.enums.AuditActorType;
 import com.core.coreboot.platform.common.enums.CustomerStatus;
+import com.core.coreboot.platform.consumption.mapper.ConsumptionOrderMapper;
 import com.core.coreboot.platform.customer.config.CustomerPinProperties;
 import com.core.coreboot.platform.customer.entity.CustomerSecurity;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
 import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.customer.model.ConsumePinStatus;
+import com.core.coreboot.platform.customer.service.ConsumePinResetTokenStore;
 import com.core.coreboot.platform.customer.service.CustomerConsumePinService;
+import com.core.coreboot.platform.customer.service.support.ConsumePinPolicy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,21 +25,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Set;
-import java.util.regex.Pattern;
 
 @Service
 public class CustomerConsumePinServiceImpl implements CustomerConsumePinService {
-    private static final Pattern PIN_PATTERN = Pattern.compile("\\d{6}");
-    private static final Set<String> WEAK_PINS = Set.of(
-            "000000", "111111", "222222", "333333", "444444",
-            "555555", "666666", "777777", "888888", "999999",
-            "012345", "123456", "234567", "345678", "456789",
-            "987654", "876543", "765432", "654321", "543210"
-    );
-
     private final CustomerUserMapper customerUserMapper;
     private final CustomerSecurityMapper customerSecurityMapper;
+    private final ConsumptionOrderMapper consumptionOrderMapper;
+    private final ConsumePinResetTokenStore resetTokenStore;
     private final AuditLogMapper auditLogMapper;
     private final PasswordEncoder passwordEncoder;
     private final CustomerPinProperties properties;
@@ -46,6 +41,8 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
     public CustomerConsumePinServiceImpl(
             CustomerUserMapper customerUserMapper,
             CustomerSecurityMapper customerSecurityMapper,
+            ConsumptionOrderMapper consumptionOrderMapper,
+            ConsumePinResetTokenStore resetTokenStore,
             AuditLogMapper auditLogMapper,
             PasswordEncoder passwordEncoder,
             CustomerPinProperties properties
@@ -53,6 +50,8 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
         this(
                 customerUserMapper,
                 customerSecurityMapper,
+                consumptionOrderMapper,
+                resetTokenStore,
                 auditLogMapper,
                 passwordEncoder,
                 properties,
@@ -63,6 +62,8 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
     CustomerConsumePinServiceImpl(
             CustomerUserMapper customerUserMapper,
             CustomerSecurityMapper customerSecurityMapper,
+            ConsumptionOrderMapper consumptionOrderMapper,
+            ConsumePinResetTokenStore resetTokenStore,
             AuditLogMapper auditLogMapper,
             PasswordEncoder passwordEncoder,
             CustomerPinProperties properties,
@@ -70,6 +71,8 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
     ) {
         this.customerUserMapper = customerUserMapper;
         this.customerSecurityMapper = customerSecurityMapper;
+        this.consumptionOrderMapper = consumptionOrderMapper;
+        this.resetTokenStore = resetTokenStore;
         this.auditLogMapper = auditLogMapper;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
@@ -97,7 +100,7 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void setInitialPin(Long customerId, String newPin, String clientIp) {
-        requireStrongPin(newPin);
+        ConsumePinPolicy.requireStrong(newPin);
         requirePhoneBound(requireActiveCustomer(customerId));
         LocalDateTime now = LocalDateTime.now(clock);
         CustomerSecurity security = customerSecurityMapper.selectByCustomerIdForUpdate(customerId);
@@ -127,7 +130,7 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = CustomException.class)
     public void changePin(Long customerId, String currentPin, String newPin, String clientIp) {
-        requireStrongPin(newPin);
+        ConsumePinPolicy.requireStrong(newPin);
         requirePhoneBound(requireActiveCustomer(customerId));
         int maxFailedAttempts = validatedMaxFailedAttempts();
         Duration lockDuration = validatedLockDuration();
@@ -148,6 +151,32 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
         security.setPinUpdatedTime(now);
         requireOneRow(customerSecurityMapper.updateById(security));
         insertAudit(customerId, "CUSTOMER_CONSUME_PIN_CHANGED", "客户修改消费密码", clientIp);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPin(Long customerId, String resetToken, String newPin, String clientIp) {
+        ConsumePinPolicy.requireStrong(newPin);
+        requirePhoneBound(requireActiveCustomer(customerId));
+        LocalDateTime now = LocalDateTime.now(clock);
+        CustomerSecurity security = requireConfiguredSecurity(customerId);
+        if (passwordEncoder.matches(newPin, security.getConsumePinHash())) {
+            throw new CustomException(ExceptionEnum.PLATFORM_CONSUME_PIN_UNCHANGED);
+        }
+
+        resetTokenStore.consume(customerId, resetToken);
+        security.setConsumePinHash(passwordEncoder.encode(newPin));
+        security.setFailedCount(0);
+        security.setLockedUntil(null);
+        security.setPinUpdatedTime(now);
+        requireOneRow(customerSecurityMapper.updateById(security));
+        int cancelledOrders = consumptionOrderMapper.cancelPendingByCustomerId(customerId, now);
+        insertAudit(
+                customerId,
+                "CUSTOMER_CONSUME_PIN_RESET",
+                "客户通过绑定手机号验证重置消费密码，取消待确认消费订单" + cancelledOrders + "笔",
+                clientIp
+        );
     }
 
     @Override
@@ -198,14 +227,8 @@ public class CustomerConsumePinServiceImpl implements CustomerConsumePinService 
         }
     }
 
-    private void requireStrongPin(String pin) {
-        if (pin == null || !PIN_PATTERN.matcher(pin).matches() || WEAK_PINS.contains(pin)) {
-            throw new CustomException(ExceptionEnum.PLATFORM_CONSUME_PIN_FORMAT_INVALID);
-        }
-    }
-
     private boolean matchesPin(String pin, String encodedPin) {
-        return pin != null && PIN_PATTERN.matcher(pin).matches() && passwordEncoder.matches(pin, encodedPin);
+        return ConsumePinPolicy.isFormatValid(pin) && passwordEncoder.matches(pin, encodedPin);
     }
 
     private void requireNotLocked(CustomerSecurity security, LocalDateTime now) {

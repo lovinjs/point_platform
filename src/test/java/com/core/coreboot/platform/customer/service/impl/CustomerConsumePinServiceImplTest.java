@@ -5,12 +5,14 @@ import com.core.coreboot.exception.ExceptionEnum;
 import com.core.coreboot.platform.audit.entity.AuditLog;
 import com.core.coreboot.platform.audit.mapper.AuditLogMapper;
 import com.core.coreboot.platform.common.enums.CustomerStatus;
+import com.core.coreboot.platform.consumption.mapper.ConsumptionOrderMapper;
 import com.core.coreboot.platform.customer.config.CustomerPinProperties;
 import com.core.coreboot.platform.customer.entity.CustomerSecurity;
 import com.core.coreboot.platform.customer.entity.CustomerUser;
 import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.customer.model.ConsumePinStatus;
+import com.core.coreboot.platform.customer.service.ConsumePinResetTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +50,10 @@ class CustomerConsumePinServiceImplTest {
     @Mock
     private CustomerSecurityMapper customerSecurityMapper;
     @Mock
+    private ConsumptionOrderMapper consumptionOrderMapper;
+    @Mock
+    private ConsumePinResetTokenStore resetTokenStore;
+    @Mock
     private AuditLogMapper auditLogMapper;
 
     private PasswordEncoder passwordEncoder;
@@ -63,6 +69,8 @@ class CustomerConsumePinServiceImplTest {
         service = new CustomerConsumePinServiceImpl(
                 customerUserMapper,
                 customerSecurityMapper,
+                consumptionOrderMapper,
+                resetTokenStore,
                 auditLogMapper,
                 passwordEncoder,
                 properties,
@@ -153,6 +161,43 @@ class CustomerConsumePinServiceImplTest {
         ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogMapper).insert(auditCaptor.capture());
         assertEquals("CUSTOMER_CONSUME_PIN_CHANGED", auditCaptor.getValue().getAction());
+    }
+
+    @Test
+    void shouldResetPinAndCancelPendingConsumptionOrders() {
+        allowActiveCustomer();
+        CustomerSecurity security = security(CURRENT_PIN, 5, NOW.plusMinutes(10));
+        when(customerSecurityMapper.selectByCustomerIdForUpdate(1L)).thenReturn(security);
+        when(customerSecurityMapper.updateById(any(CustomerSecurity.class))).thenReturn(1);
+        when(consumptionOrderMapper.cancelPendingByCustomerId(1L, NOW)).thenReturn(2);
+        when(auditLogMapper.insert(any(AuditLog.class))).thenReturn(1);
+
+        service.resetPin(1L, "reset-token", NEW_PIN, "192.0.2.37");
+
+        verify(resetTokenStore).consume(1L, "reset-token");
+        assertTrue(passwordEncoder.matches(NEW_PIN, security.getConsumePinHash()));
+        assertEquals(0, security.getFailedCount());
+        assertNull(security.getLockedUntil());
+        verify(consumptionOrderMapper).cancelPendingByCustomerId(1L, NOW);
+        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogMapper).insert(auditCaptor.capture());
+        assertEquals("CUSTOMER_CONSUME_PIN_RESET", auditCaptor.getValue().getAction());
+        assertTrue(auditCaptor.getValue().getRemark().contains("2笔"));
+    }
+
+    @Test
+    void shouldNotConsumeResetTokenWhenNewPinIsUnchanged() {
+        allowActiveCustomer();
+        when(customerSecurityMapper.selectByCustomerIdForUpdate(1L)).thenReturn(security(CURRENT_PIN, 0, null));
+
+        CustomException exception = assertThrows(
+                CustomException.class,
+                () -> service.resetPin(1L, "reset-token", CURRENT_PIN, null)
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_CONSUME_PIN_UNCHANGED.getCode(), exception.getCode());
+        verify(resetTokenStore, never()).consume(any(), any());
+        verify(consumptionOrderMapper, never()).cancelPendingByCustomerId(any(), any());
     }
 
     @Test

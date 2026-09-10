@@ -6,6 +6,10 @@ import com.core.coreboot.platform.customer.phone.model.PhoneVerificationDispatch
 public interface CustomerPhoneService {
     PhoneVerificationDispatchResult requestVerificationCode(Long customerId, String phone);
 
+    PhoneVerificationDispatchResult requestBoundPhoneVerificationCode(Long customerId);
+
+    void verifyBoundPhoneVerificationCode(Long customerId, String verificationCode);
+
     CustomerAccountView bindPhone(
             Long customerId,
             String phone,

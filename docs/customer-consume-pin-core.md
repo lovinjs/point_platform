@@ -9,6 +9,7 @@
 - 查询当前消费者是否已设置消费密码，以及是否处于锁定状态。
 - 首次设置消费密码。
 - 使用原密码修改消费密码。
+- 通过已绑定手机号验证码找回并重置消费密码。
 - 核销前校验消费密码。
 - 连续输错计数及临时锁定。
 - 设置、修改和触发锁定的安全审计。
@@ -44,6 +45,9 @@ V1 基线脚本已经包含 `t_customer_security`，本阶段不需要执行新 
 GET  /api/v1/customer/security/consume-pin/status
 POST /api/v1/customer/security/consume-pin
 PUT  /api/v1/customer/security/consume-pin
+POST /api/v1/customer/security/consume-pin/reset/verification-codes
+POST /api/v1/customer/security/consume-pin/reset/tokens
+PUT  /api/v1/customer/security/consume-pin/reset
 ```
 
 首次设置请求：
@@ -65,7 +69,14 @@ PUT  /api/v1/customer/security/consume-pin
 
 设置和修改密码要求当前客户已经绑定手机号。查询状态不要求绑定手机号，便于客户端展示账户安全状态。成功后返回最新的 `configured`、`locked`、`lockedUntil` 和 `pinUpdatedTime`。
 
-忘记密码功能后续采用“微信登录状态 + 绑定手机号验证码 + 一次性重置凭证”，并在重置成功后取消该消费者全部待确认消费订单。本阶段不提供店员或管理员代设密码接口。
+忘记密码采用“微信登录状态 + 已绑定手机号验证码 + 一次性重置凭证”：
+
+1. 请求验证码时不接受客户端传入手机号，只向数据库记录的已绑定手机号发送。
+2. 验证码验证成功后签发默认有效 5 分钟的一次性重置凭证；同一客户新签发的凭证会覆盖旧凭证。
+3. 使用重置凭证设置新密码，凭证验证成功后立即失效。
+4. 重置成功会清除密码错误次数和临时锁定，并取消该消费者全部待确认消费订单。
+
+本地联调继续使用 `PLATFORM_PHONE_VERIFICATION_MODE=LOG`，从后端日志读取验证码。重置凭证有效期可通过 `PLATFORM_CUSTOMER_PIN_RESET_TOKEN_TTL` 调整，只允许配置为 1～10 分钟。本功能不提供店员或管理员代设消费密码接口。
 
 ## 消费确认
 

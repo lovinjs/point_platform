@@ -4,6 +4,7 @@ import com.core.coreboot.platform.common.enums.CustomerStatus;
 import com.core.coreboot.platform.customer.auth.security.CustomerPrincipal;
 import com.core.coreboot.platform.customer.model.ConsumePinStatus;
 import com.core.coreboot.platform.customer.model.SetConsumePinRequest;
+import com.core.coreboot.platform.customer.service.CustomerConsumePinRecoveryService;
 import com.core.coreboot.platform.customer.service.CustomerConsumePinService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +23,8 @@ import static org.mockito.Mockito.when;
 class CustomerConsumePinControllerTest {
     @Mock
     private CustomerConsumePinService customerConsumePinService;
+    @Mock
+    private CustomerConsumePinRecoveryService recoveryService;
     @InjectMocks
     private CustomerConsumePinController controller;
 

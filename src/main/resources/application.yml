@@ -81,6 +81,7 @@ platform:
     customer-pin:
       max-failed-attempts: ${PLATFORM_CUSTOMER_PIN_MAX_FAILED_ATTEMPTS:5}
       lock-duration: ${PLATFORM_CUSTOMER_PIN_LOCK_DURATION:PT30M}
+      reset-token-ttl: ${PLATFORM_CUSTOMER_PIN_RESET_TOKEN_TTL:PT5M}
     customer:
       jwt-secret-base64: ${PLATFORM_CUSTOMER_JWT_SECRET_BASE64:}
       token-ttl: ${PLATFORM_CUSTOMER_TOKEN_TTL:PT2H}

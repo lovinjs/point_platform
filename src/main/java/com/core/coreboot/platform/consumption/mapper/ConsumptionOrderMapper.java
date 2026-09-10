@@ -101,6 +101,18 @@ public interface ConsumptionOrderMapper extends BaseMapper<ConsumptionOrder> {
             @Param("completedTime") LocalDateTime completedTime
     );
 
+    @Update("""
+            UPDATE t_consumption_order
+            SET order_status = 'CANCELLED',
+                update_time = #{cancelledTime}
+            WHERE customer_id = #{customerId}
+              AND order_status = 'PENDING_CONFIRM'
+            """)
+    int cancelPendingByCustomerId(
+            @Param("customerId") Long customerId,
+            @Param("cancelledTime") LocalDateTime cancelledTime
+    );
+
     @Select("""
             SELECT id, order_no, customer_id, store_id, consume_points, gross_amount_cent,
                    platform_fee_rate_bps, platform_fee_cent, store_payable_cent,

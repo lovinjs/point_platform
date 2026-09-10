@@ -9,5 +9,7 @@ public interface CustomerConsumePinService {
 
     void changePin(Long customerId, String currentPin, String newPin, String clientIp);
 
+    void resetPin(Long customerId, String resetToken, String newPin, String clientIp);
+
     void verifyPin(Long customerId, String pin, String clientIp);
 }

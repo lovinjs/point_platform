@@ -10,6 +10,7 @@ import java.time.Duration;
 public class CustomerPinProperties {
     private int maxFailedAttempts = 5;
     private Duration lockDuration = Duration.ofMinutes(30);
+    private Duration resetTokenTtl = Duration.ofMinutes(5);
 
     public int getMaxFailedAttempts() {
         return maxFailedAttempts;
@@ -25,5 +26,13 @@ public class CustomerPinProperties {
 
     public void setLockDuration(Duration lockDuration) {
         this.lockDuration = lockDuration;
+    }
+
+    public Duration getResetTokenTtl() {
+        return resetTokenTtl;
+    }
+
+    public void setResetTokenTtl(Duration resetTokenTtl) {
+        this.resetTokenTtl = resetTokenTtl;
     }
 }
