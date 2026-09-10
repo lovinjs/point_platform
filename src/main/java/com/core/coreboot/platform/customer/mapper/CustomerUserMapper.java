@@ -68,4 +68,17 @@ public interface CustomerUserMapper extends BaseMapper<CustomerUser> {
             @Param("nickname") String nickname,
             @Param("avatarUrl") String avatarUrl
     );
+
+    @Update("""
+            UPDATE t_customer_user
+            SET status = #{status},
+                token_version = token_version + 1,
+                update_time = #{updateTime}
+            WHERE id = #{customerId}
+            """)
+    int updateCustomerStatus(
+            @Param("customerId") Long customerId,
+            @Param("status") String status,
+            @Param("updateTime") java.time.LocalDateTime updateTime
+    );
 }
