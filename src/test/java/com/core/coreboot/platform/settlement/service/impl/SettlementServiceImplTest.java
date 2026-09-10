@@ -1,5 +1,7 @@
 package com.core.coreboot.platform.settlement.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.core.coreboot.exception.CustomException;
 import com.core.coreboot.exception.ExceptionEnum;
 import com.core.coreboot.platform.audit.entity.AuditLog;
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -187,6 +190,38 @@ class SettlementServiceImplTest {
 
         assertEquals(ExceptionEnum.PLATFORM_SETTLEMENT_NO_ELIGIBLE_ORDERS.getCode(), exception.getCode());
         verify(storeSettlementMapper, never()).insert(any(StoreSettlement.class));
+    }
+
+    @Test
+    void shouldFilterSettlementListByRequestedStoreForSuperAdmin() {
+        allowSuperAdmin();
+        StoreSettlement settlement = settlement(StoreSettlementStatus.GENERATED, null);
+        Page<StoreSettlement> page = new Page<>(1, 20);
+        page.setTotal(1);
+        page.setRecords(List.of(settlement));
+        when(storeSettlementMapper.selectPage(
+                ArgumentMatchers.<Page<StoreSettlement>>any(),
+                ArgumentMatchers.<Wrapper<StoreSettlement>>any()
+        )).thenReturn(page);
+        when(settlementPeriodMapper.selectByIds(anyCollection())).thenReturn(List.of(openPeriod()));
+        when(storeMapper.selectByIds(anyCollection())).thenReturn(List.of(store()));
+
+        var result = service.list(5L, 1, 20, null, null, 2L);
+
+        assertEquals(1L, result.total());
+        assertEquals(2L, result.items().getFirst().storeId());
+    }
+
+    @Test
+    void shouldRejectSettlementListStoreOutsideManagerScope() {
+        allowManager(2L);
+
+        CustomException exception = assertThrows(CustomException.class, () ->
+                service.list(6L, 1, 20, null, null, 3L)
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_SETTLEMENT_ACCESS_DENIED.getCode(), exception.getCode());
+        verify(storeSettlementMapper, never()).selectPage(any(), any());
     }
 
     @Test

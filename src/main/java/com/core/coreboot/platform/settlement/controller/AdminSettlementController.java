@@ -59,6 +59,7 @@ public class AdminSettlementController {
             @RequestParam(defaultValue = "20") int pageSize,
             @RequestParam(required = false) String periodCode,
             @RequestParam(required = false) StoreSettlementStatus status,
+            @RequestParam(required = false) Long storeId,
             @AuthenticationPrincipal AdminUserPrincipal principal
     ) {
         return ApiRestResponse.success(settlementService.list(
@@ -66,7 +67,8 @@ public class AdminSettlementController {
                 pageNum,
                 pageSize,
                 periodCode,
-                status
+                status,
+                storeId
         ));
     }
 

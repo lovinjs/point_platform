@@ -17,7 +17,8 @@ public interface SettlementService {
             int pageNum,
             int pageSize,
             String periodCode,
-            StoreSettlementStatus status
+            StoreSettlementStatus status,
+            Long storeId
     );
 
     StoreSettlementDetailView detail(Long operatorId, String settlementNo);

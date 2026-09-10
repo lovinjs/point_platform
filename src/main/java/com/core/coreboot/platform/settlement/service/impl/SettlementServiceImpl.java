@@ -214,11 +214,18 @@ public class SettlementServiceImpl implements SettlementService {
             int pageNum,
             int pageSize,
             String periodCode,
-            StoreSettlementStatus status
+            StoreSettlementStatus status,
+            Long storeId
     ) {
         validatePage(pageNum, pageSize);
         Authority authority = resolveAuthority(operatorId);
         requireSettlementReader(authority);
+        if (storeId != null && storeId <= 0) {
+            throw new CustomException(ExceptionEnum.PLATFORM_INVALID_REQUEST);
+        }
+        if (storeId != null && !authority.superAdmin() && !authority.storeIds().contains(storeId)) {
+            throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_ACCESS_DENIED);
+        }
 
         var query = Wrappers.lambdaQuery(StoreSettlement.class);
         String normalizedPeriodCode = normalizeOptional(periodCode);
@@ -233,7 +240,9 @@ public class SettlementServiceImpl implements SettlementService {
         if (status != null) {
             query.eq(StoreSettlement::getSettlementStatus, status);
         }
-        if (!authority.superAdmin()) {
+        if (storeId != null) {
+            query.eq(StoreSettlement::getStoreId, storeId);
+        } else if (!authority.superAdmin()) {
             if (authority.storeIds().isEmpty()) {
                 return emptyPage(pageNum, pageSize);
             }
