@@ -37,8 +37,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -217,6 +219,118 @@ class AdminOrderQueryServiceImplTest {
         verify(staffAuthorityMapper, never()).selectStoreIds(OPERATOR_ID);
     }
 
+    @Test
+    void shouldRejectClerkOrderExport() {
+        when(sysUserMapper.selectById(OPERATOR_ID)).thenReturn(activeOperator());
+        when(staffAuthorityMapper.selectRoleCodes(OPERATOR_ID)).thenReturn(List.of("CLERK"));
+
+        CustomException exception = assertThrows(
+                CustomException.class,
+                () -> service.exportRechargeOrders(
+                        OPERATOR_ID,
+                        LocalDate.of(2026, 9, 1),
+                        LocalDate.of(2026, 9, 10),
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_ADMIN_ACCESS_DENIED.getCode(), exception.getCode());
+        verify(rechargeOrderMapper, never()).selectList(ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldExportManagerOrdersWithinAssignedStoreScope() {
+        allowManagerAtStore(2L);
+        RechargeOrder order = RechargeOrder.builder()
+                .id(31L)
+                .orderNo("RCH31")
+                .customerId(7L)
+                .rechargeStoreId(2L)
+                .rechargePoints(100L)
+                .amountCent(10_000L)
+                .channel(RechargeChannel.OFFLINE)
+                .paymentMethod(PaymentMethod.BANK_TRANSFER)
+                .fundReceiver(FundReceiver.PLATFORM)
+                .paymentReference("BANK-31")
+                .orderStatus(RechargeOrderStatus.COMPLETED)
+                .operatorId(OPERATOR_ID)
+                .createTime(NOW.minusDays(1))
+                .build();
+        when(rechargeOrderMapper.selectList(ArgumentMatchers.<Wrapper<RechargeOrder>>any()))
+                .thenReturn(List.of(order));
+        when(customerUserMapper.selectByIds(List.of(7L))).thenReturn(List.of(
+                CustomerUser.builder().id(7L).phone("13800138000").build()
+        ));
+        when(storeMapper.selectByIds(List.of(2L))).thenReturn(List.of(store(2L, StoreStatus.ACTIVE)));
+        when(sysUserMapper.selectByIds(List.of(OPERATOR_ID))).thenReturn(List.of(
+                SysUser.builder().id(OPERATOR_ID).username("manager").build()
+        ));
+        when(rechargeRefundMapper.selectList(ArgumentMatchers.<Wrapper<RechargeRefund>>any()))
+                .thenReturn(List.of());
+
+        var result = service.exportRechargeOrders(
+                OPERATOR_ID,
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 10),
+                null,
+                RechargeOrderStatus.COMPLETED,
+                null,
+                null
+        );
+
+        assertEquals(1, result.size());
+        assertEquals("RCH31", result.getFirst().orderNo());
+        assertEquals("测试门店2", result.getFirst().storeName());
+    }
+
+    @Test
+    void shouldRejectOversizedOrderExportRangeBeforeQuery() {
+        allowSuperAdmin();
+
+        CustomException exception = assertThrows(
+                CustomException.class,
+                () -> service.exportConsumptionOrders(
+                        OPERATOR_ID,
+                        LocalDate.of(2026, 6, 9),
+                        LocalDate.of(2026, 9, 10),
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_INVALID_REQUEST.getCode(), exception.getCode());
+        verify(consumptionOrderMapper, never()).selectList(ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldRejectOrderExportAboveRowLimitBeforeLoadingRelatedData() {
+        allowSuperAdmin();
+        RechargeOrder order = RechargeOrder.builder().id(41L).build();
+        when(rechargeOrderMapper.selectList(ArgumentMatchers.<Wrapper<RechargeOrder>>any()))
+                .thenReturn(Collections.nCopies(10_001, order));
+
+        CustomException exception = assertThrows(
+                CustomException.class,
+                () -> service.exportRechargeOrders(
+                        OPERATOR_ID,
+                        LocalDate.of(2026, 9, 1),
+                        LocalDate.of(2026, 9, 10),
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_REPORT_ROW_LIMIT_EXCEEDED.getCode(), exception.getCode());
+        verify(customerUserMapper, never()).selectByIds(ArgumentMatchers.anyCollection());
+    }
+
     private void allowClerkAtStore(Long storeId) {
         when(sysUserMapper.selectById(OPERATOR_ID)).thenReturn(activeOperator());
         when(staffAuthorityMapper.selectRoleCodes(OPERATOR_ID)).thenReturn(List.of("CLERK"));
@@ -226,6 +340,12 @@ class AdminOrderQueryServiceImplTest {
     private void allowSuperAdmin() {
         when(sysUserMapper.selectById(OPERATOR_ID)).thenReturn(activeOperator());
         when(staffAuthorityMapper.selectRoleCodes(OPERATOR_ID)).thenReturn(List.of("SUPER_ADMIN"));
+    }
+
+    private void allowManagerAtStore(Long storeId) {
+        when(sysUserMapper.selectById(OPERATOR_ID)).thenReturn(activeOperator());
+        when(staffAuthorityMapper.selectRoleCodes(OPERATOR_ID)).thenReturn(List.of("STORE_MANAGER"));
+        when(staffAuthorityMapper.selectStoreIds(OPERATOR_ID)).thenReturn(List.of(storeId));
     }
 
     private SysUser activeOperator() {

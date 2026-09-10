@@ -7,6 +7,7 @@ import com.core.coreboot.platform.order.model.AdminConsumptionOrderView;
 import com.core.coreboot.platform.order.model.AdminOrderStoreOptionView;
 import com.core.coreboot.platform.order.model.AdminRechargeOrderView;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface AdminOrderQueryService {
@@ -26,6 +27,26 @@ public interface AdminOrderQueryService {
             Long operatorId,
             int pageNum,
             int pageSize,
+            Long storeId,
+            ConsumptionOrderStatus status,
+            String orderNo,
+            String customerPhone
+    );
+
+    List<AdminRechargeOrderView> exportRechargeOrders(
+            Long operatorId,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long storeId,
+            RechargeOrderStatus status,
+            String orderNo,
+            String customerPhone
+    );
+
+    List<AdminConsumptionOrderView> exportConsumptionOrders(
+            Long operatorId,
+            LocalDate startDate,
+            LocalDate endDate,
             Long storeId,
             ConsumptionOrderStatus status,
             String orderNo,

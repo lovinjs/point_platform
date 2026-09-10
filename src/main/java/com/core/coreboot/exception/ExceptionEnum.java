@@ -120,6 +120,8 @@ public enum ExceptionEnum {
     PLATFORM_STAFF_PASSWORD_INVALID(30088, "密码必须为12到128位，并包含大小写字母、数字和特殊字符"),
     PLATFORM_STAFF_PASSWORD_UNCHANGED(30089, "新密码不能与当前密码相同"),
     PLATFORM_STAFF_MANAGEMENT_WRITE_FAILED(30090, "员工账号保存失败，请刷新后重试"),
+    PLATFORM_REPORT_ROW_LIMIT_EXCEEDED(30091, "导出数据超过10000条，请缩小日期或筛选范围"),
+    PLATFORM_REPORT_GENERATION_FAILED(30092, "报表生成失败，请稍后重试"),
     SYSTEM_ERROR(20000, "系统异常"),
     REDIS_CONNECTION_ERROR(20001, "Redis缓存服务暂不可用"),
     MYSQL_CONNECTION_ERROR(20002, "MySQL数据库服务暂不可用");

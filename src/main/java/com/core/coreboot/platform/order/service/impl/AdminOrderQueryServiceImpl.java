@@ -33,7 +33,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -47,6 +49,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class AdminOrderQueryServiceImpl implements AdminOrderQueryService {
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_EXPORT_DAYS = 93;
+    private static final int MAX_EXPORT_ROWS = 10_000;
     private static final int MAX_ORDER_NO_LENGTH = 64;
     private static final Pattern PHONE_PATTERN = Pattern.compile("\\+?[0-9]{6,20}");
 
@@ -213,6 +217,104 @@ public class AdminOrderQueryServiceImpl implements AdminOrderQueryService {
         return toPageResult(page, items);
     }
 
+    @Override
+    public List<AdminRechargeOrderView> exportRechargeOrders(
+            Long operatorId,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long storeId,
+            RechargeOrderStatus status,
+            String orderNo,
+            String customerPhone
+    ) {
+        OperatorScope scope = requireScope(operatorId, true);
+        validateRequestedStore(scope, storeId);
+        DateRange range = validateExportDateRange(startDate, endDate);
+        String normalizedOrderNo = normalizeOrderNo(orderNo);
+        CustomerFilter customerFilter = resolveCustomer(customerPhone);
+        if (customerFilter.supplied() && customerFilter.customerId() == null) {
+            return List.of();
+        }
+        if (!scope.unrestricted() && scope.storeIds().isEmpty()) {
+            return List.of();
+        }
+
+        LambdaQueryWrapper<RechargeOrder> wrapper = Wrappers.lambdaQuery(RechargeOrder.class)
+                .ge(RechargeOrder::getCreateTime, range.startTime())
+                .lt(RechargeOrder::getCreateTime, range.endTimeExclusive())
+                .eq(storeId != null, RechargeOrder::getRechargeStoreId, storeId)
+                .eq(status != null, RechargeOrder::getOrderStatus, status)
+                .like(normalizedOrderNo != null, RechargeOrder::getOrderNo, normalizedOrderNo)
+                .eq(customerFilter.customerId() != null, RechargeOrder::getCustomerId, customerFilter.customerId());
+        if (storeId == null && !scope.unrestricted()) {
+            wrapper.in(RechargeOrder::getRechargeStoreId, scope.storeIds());
+        }
+        wrapper.orderByDesc(RechargeOrder::getCreateTime)
+                .orderByDesc(RechargeOrder::getId)
+                .last("LIMIT " + (MAX_EXPORT_ROWS + 1));
+
+        List<RechargeOrder> orders = rechargeOrderMapper.selectList(wrapper);
+        requireExportRowLimit(orders.size());
+        RelatedContext context = loadContext(
+                orders.stream().map(RechargeOrder::getCustomerId).toList(),
+                orders.stream().map(RechargeOrder::getRechargeStoreId).toList(),
+                orders.stream().map(RechargeOrder::getOperatorId).toList()
+        );
+        Map<Long, RechargeRefund> refunds = loadRefunds(orders);
+        return orders.stream()
+                .map(order -> toRechargeView(order, refunds.get(order.getId()), context))
+                .toList();
+    }
+
+    @Override
+    public List<AdminConsumptionOrderView> exportConsumptionOrders(
+            Long operatorId,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long storeId,
+            ConsumptionOrderStatus status,
+            String orderNo,
+            String customerPhone
+    ) {
+        OperatorScope scope = requireScope(operatorId, true);
+        validateRequestedStore(scope, storeId);
+        DateRange range = validateExportDateRange(startDate, endDate);
+        String normalizedOrderNo = normalizeOrderNo(orderNo);
+        CustomerFilter customerFilter = resolveCustomer(customerPhone);
+        if (customerFilter.supplied() && customerFilter.customerId() == null) {
+            return List.of();
+        }
+        if (!scope.unrestricted() && scope.storeIds().isEmpty()) {
+            return List.of();
+        }
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        LambdaQueryWrapper<ConsumptionOrder> wrapper = Wrappers.lambdaQuery(ConsumptionOrder.class)
+                .ge(ConsumptionOrder::getCreateTime, range.startTime())
+                .lt(ConsumptionOrder::getCreateTime, range.endTimeExclusive())
+                .eq(storeId != null, ConsumptionOrder::getStoreId, storeId)
+                .like(normalizedOrderNo != null, ConsumptionOrder::getOrderNo, normalizedOrderNo)
+                .eq(customerFilter.customerId() != null, ConsumptionOrder::getCustomerId, customerFilter.customerId());
+        applyConsumptionStatus(wrapper, status, now);
+        if (storeId == null && !scope.unrestricted()) {
+            wrapper.in(ConsumptionOrder::getStoreId, scope.storeIds());
+        }
+        wrapper.orderByDesc(ConsumptionOrder::getCreateTime)
+                .orderByDesc(ConsumptionOrder::getId)
+                .last("LIMIT " + (MAX_EXPORT_ROWS + 1));
+
+        List<ConsumptionOrder> orders = consumptionOrderMapper.selectList(wrapper);
+        requireExportRowLimit(orders.size());
+        RelatedContext context = loadContext(
+                orders.stream().map(ConsumptionOrder::getCustomerId).toList(),
+                orders.stream().map(ConsumptionOrder::getStoreId).toList(),
+                orders.stream().map(ConsumptionOrder::getOperatorId).toList()
+        );
+        return orders.stream()
+                .map(order -> toConsumptionView(order, context, now))
+                .toList();
+    }
+
     private void applyConsumptionStatus(
             LambdaQueryWrapper<ConsumptionOrder> wrapper,
             ConsumptionOrderStatus status,
@@ -238,6 +340,10 @@ public class AdminOrderQueryServiceImpl implements AdminOrderQueryService {
     }
 
     private OperatorScope requireScope(Long operatorId) {
+        return requireScope(operatorId, false);
+    }
+
+    private OperatorScope requireScope(Long operatorId, boolean export) {
         if (operatorId == null || operatorId <= 0) {
             throw new CustomException(ExceptionEnum.PLATFORM_ADMIN_TOKEN_INVALID);
         }
@@ -256,7 +362,7 @@ public class AdminOrderQueryServiceImpl implements AdminOrderQueryService {
             return new OperatorScope(true, List.of());
         }
         boolean isStoreStaff = roles.contains(RoleCode.STORE_MANAGER.getCode())
-                || roles.contains(RoleCode.CLERK.getCode());
+                || (!export && roles.contains(RoleCode.CLERK.getCode()));
         if (!isStoreStaff) {
             throw new CustomException(ExceptionEnum.PLATFORM_ADMIN_ACCESS_DENIED);
         }
@@ -480,6 +586,23 @@ public class AdminOrderQueryServiceImpl implements AdminOrderQueryService {
         }
     }
 
+    private DateRange validateExportDateRange(LocalDate startDate, LocalDate endDate) {
+        LocalDate today = LocalDate.now(clock);
+        if (startDate == null || endDate == null
+                || endDate.isBefore(startDate)
+                || endDate.isAfter(today)
+                || ChronoUnit.DAYS.between(startDate, endDate) >= MAX_EXPORT_DAYS) {
+            throw new CustomException(ExceptionEnum.PLATFORM_INVALID_REQUEST);
+        }
+        return new DateRange(startDate.atStartOfDay(), endDate.plusDays(1).atStartOfDay());
+    }
+
+    private void requireExportRowLimit(int rowCount) {
+        if (rowCount > MAX_EXPORT_ROWS) {
+            throw new CustomException(ExceptionEnum.PLATFORM_REPORT_ROW_LIMIT_EXCEEDED);
+        }
+    }
+
     private <T> PageResult<T> emptyPage(int pageNum, int pageSize) {
         return new PageResult<>(pageNum, pageSize, 0, 0, false, List.of());
     }
@@ -506,5 +629,8 @@ public class AdminOrderQueryServiceImpl implements AdminOrderQueryService {
             Map<Long, Store> stores,
             Map<Long, SysUser> operators
     ) {
+    }
+
+    private record DateRange(LocalDateTime startTime, LocalDateTime endTimeExclusive) {
     }
 }
