@@ -79,10 +79,11 @@ class AdminExcelReportWriterTest {
         );
         AdminConsumptionOrderView consumption = new AdminConsumptionOrderView(
                 "CSM-1", 7L, "13800138000", "测试用户", 2L, "STORE-2", "测试门店",
-                30, 3_000, 500, 150, 2_850, ConsumptionVerificationMode.CUSTOMER_PIN,
-                ConsumptionOrderStatus.COMPLETED, SettlementStatus.NOT_INCLUDED, 9L, "店长甲", "消费",
-                createdTime.plusMinutes(5), createdTime.plusMinutes(2), createdTime.plusMinutes(2), createdTime
-        );
+                 30, 3_000, 500, 150, 2_850, ConsumptionVerificationMode.CUSTOMER_PIN,
+                 ConsumptionOrderStatus.COMPLETED, SettlementStatus.NOT_INCLUDED, 9L, "店长甲", "消费",
+                 createdTime.plusMinutes(5), createdTime.plusMinutes(2), createdTime.plusMinutes(2),
+                 null, null, null, createdTime
+         );
 
         byte[] rechargeBytes = writer.writeRechargeOrders(
                 LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 10),

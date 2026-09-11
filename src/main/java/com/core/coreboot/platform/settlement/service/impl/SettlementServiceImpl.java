@@ -51,6 +51,7 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -169,22 +170,35 @@ public class SettlementServiceImpl implements SettlementService {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
         }
 
+        LocalDateTime endTimeExclusive = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
         List<ConsumptionOrder> eligibleOrders = consumptionOrderMapper.selectEligibleForSettlement(
                 startDate.atStartOfDay(),
-                targetMonth.plusMonths(1).atDay(1).atStartOfDay()
+                endTimeExclusive
         );
-        if (eligibleOrders == null || eligibleOrders.isEmpty()) {
+        List<ConsumptionOrder> eligibleReversals =
+                consumptionOrderMapper.selectEligibleReversalsForSettlement(endTimeExclusive);
+        eligibleOrders = eligibleOrders == null ? List.of() : eligibleOrders;
+        eligibleReversals = eligibleReversals == null ? List.of() : eligibleReversals;
+        if (eligibleOrders.isEmpty() && eligibleReversals.isEmpty()) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_NO_ELIGIBLE_ORDERS);
         }
 
-        Map<Long, List<ConsumptionOrder>> ordersByStore = eligibleOrders.stream()
-                .peek(this::validateEligibleOrder)
-                .collect(Collectors.groupingBy(
-                        ConsumptionOrder::getStoreId,
-                        LinkedHashMap::new,
-                        Collectors.toList()
-                ));
-        for (Map.Entry<Long, List<ConsumptionOrder>> entry : ordersByStore.entrySet()) {
+        Map<Long, SettlementBatch> batchesByStore = new LinkedHashMap<>();
+        for (ConsumptionOrder order : eligibleOrders) {
+            validateEligibleOrder(order);
+            batchesByStore.computeIfAbsent(order.getStoreId(), ignored -> new SettlementBatch(
+                    new ArrayList<>(),
+                    new ArrayList<>()
+            )).orders().add(order);
+        }
+        for (ConsumptionOrder reversal : eligibleReversals) {
+            validateEligibleReversal(reversal);
+            batchesByStore.computeIfAbsent(reversal.getStoreId(), ignored -> new SettlementBatch(
+                    new ArrayList<>(),
+                    new ArrayList<>()
+            )).reversals().add(reversal);
+        }
+        for (Map.Entry<Long, SettlementBatch> entry : batchesByStore.entrySet()) {
             createStoreSettlement(period, entry.getKey(), entry.getValue());
         }
 
@@ -194,14 +208,14 @@ public class SettlementServiceImpl implements SettlementService {
         period.setFrozenTime(generatedTime);
         period.setGeneratedTime(generatedTime);
         List<StoreSettlement> settlements = storeSettlementMapper.selectByPeriodId(period.getId());
-        if (settlements == null || settlements.size() != ordersByStore.size()) {
+        if (settlements == null || settlements.size() != batchesByStore.size()) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
         }
         requireOneRow(auditLogMapper.insert(buildGenerationAudit(
                 period,
                 command.operatorId(),
                 clientIp,
-                eligibleOrders.size(),
+                eligibleOrders.size() + eligibleReversals.size(),
                 settlements
         )));
         return toGenerationResult(period, settlements);
@@ -340,12 +354,17 @@ public class SettlementServiceImpl implements SettlementService {
         ) > 0) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_PAYMENT_REFERENCE_USED);
         }
-        long expectedItemCount = storeSettlementItemMapper.selectCount(
+        long totalItemCount = storeSettlementItemMapper.selectCount(
+                Wrappers.lambdaQuery(StoreSettlementItem.class)
+                        .eq(StoreSettlementItem::getSettlementId, settlement.getId())
+        );
+        long expectedConsumptionCount = storeSettlementItemMapper.selectCount(
                 Wrappers.lambdaQuery(StoreSettlementItem.class)
                         .eq(StoreSettlementItem::getSettlementId, settlement.getId())
                         .eq(StoreSettlementItem::getItemType, SettlementItemType.CONSUMPTION)
         );
-        if (expectedItemCount <= 0 || expectedItemCount > Integer.MAX_VALUE) {
+        if (totalItemCount <= 0 || totalItemCount > Integer.MAX_VALUE
+                || expectedConsumptionCount < 0 || expectedConsumptionCount > Integer.MAX_VALUE) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
         }
 
@@ -356,9 +375,11 @@ public class SettlementServiceImpl implements SettlementService {
                 normalized.paymentReference(),
                 normalized.remark()
         ));
-        int settledOrders = consumptionOrderMapper.markSettlementItemsSettled(settlement.getId());
-        if (settledOrders != (int) expectedItemCount) {
-            throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_WRITE_FAILED);
+        if (expectedConsumptionCount > 0) {
+            int settledOrders = consumptionOrderMapper.markSettlementItemsSettled(settlement.getId());
+            if (settledOrders != (int) expectedConsumptionCount) {
+                throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_WRITE_FAILED);
+            }
         }
         settlementPeriodMapper.markPaidIfAll(settlement.getPeriodId());
         requireOneRow(auditLogMapper.insert(buildSettlementAudit(
@@ -379,13 +400,13 @@ public class SettlementServiceImpl implements SettlementService {
     private void createStoreSettlement(
             SettlementPeriod period,
             Long storeId,
-            List<ConsumptionOrder> orders
+            SettlementBatch batch
     ) {
         Store store = storeMapper.selectById(storeId);
         if (store == null || store.getMerchantId() == null || store.getMerchantId() <= 0) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
         }
-        Totals totals = calculateTotals(orders);
+        Totals totals = calculateTotals(batch);
         StoreSettlement settlement = StoreSettlement.builder()
                 .settlementNo(BusinessNoGenerator.next("STL"))
                 .periodId(period.getId())
@@ -402,7 +423,7 @@ public class SettlementServiceImpl implements SettlementService {
         if (settlement.getId() == null) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_WRITE_FAILED);
         }
-        for (ConsumptionOrder order : orders) {
+        for (ConsumptionOrder order : batch.orders()) {
             StoreSettlementItem item = StoreSettlementItem.builder()
                     .settlementId(settlement.getId())
                     .itemType(SettlementItemType.CONSUMPTION)
@@ -415,24 +436,41 @@ public class SettlementServiceImpl implements SettlementService {
             requireOneRow(storeSettlementItemMapper.insert(item));
             requireOneRow(consumptionOrderMapper.markIncludedInSettlement(order.getId()));
         }
+        for (ConsumptionOrder reversal : batch.reversals()) {
+            StoreSettlementItem item = StoreSettlementItem.builder()
+                    .settlementId(settlement.getId())
+                    .itemType(SettlementItemType.REVERSAL_ADJUSTMENT)
+                    .consumptionOrderId(reversal.getId())
+                    .pointsDelta(negateExact(reversal.getConsumePoints()))
+                    .grossAmountCent(negateExact(reversal.getGrossAmountCent()))
+                    .platformFeeCent(negateExact(reversal.getPlatformFeeCent()))
+                    .storePayableCent(negateExact(reversal.getStorePayableCent()))
+                    .adjustmentReason(reversal.getReversalReason())
+                    .build();
+            requireOneRow(storeSettlementItemMapper.insert(item));
+            requireOneRow(consumptionOrderMapper.markReversalAdjusted(reversal.getId()));
+        }
     }
 
-    private Totals calculateTotals(List<ConsumptionOrder> orders) {
+    private Totals calculateTotals(SettlementBatch batch) {
         long points = 0;
         long gross = 0;
         long fee = 0;
         long payable = 0;
         try {
-            for (ConsumptionOrder order : orders) {
+            for (ConsumptionOrder order : batch.orders()) {
                 points = Math.addExact(points, order.getConsumePoints());
                 gross = Math.addExact(gross, order.getGrossAmountCent());
                 fee = Math.addExact(fee, order.getPlatformFeeCent());
                 payable = Math.addExact(payable, order.getStorePayableCent());
             }
+            for (ConsumptionOrder reversal : batch.reversals()) {
+                points = Math.subtractExact(points, reversal.getConsumePoints());
+                gross = Math.subtractExact(gross, reversal.getGrossAmountCent());
+                fee = Math.subtractExact(fee, reversal.getPlatformFeeCent());
+                payable = Math.subtractExact(payable, reversal.getStorePayableCent());
+            }
         } catch (ArithmeticException ex) {
-            throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
-        }
-        if (points <= 0 || gross <= 0 || fee < 0 || payable < 0) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
         }
         try {
@@ -445,6 +483,17 @@ public class SettlementServiceImpl implements SettlementService {
         return new Totals(points, gross, fee, payable);
     }
 
+    private long negateExact(Long value) {
+        if (value == null) {
+            throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
+        }
+        try {
+            return Math.negateExact(value);
+        } catch (ArithmeticException ex) {
+            throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
+        }
+    }
+
     private void validateEligibleOrder(ConsumptionOrder order) {
         if (order == null || order.getId() == null || order.getStoreId() == null
                 || order.getStoreId() <= 0 || order.getConsumePoints() == null
@@ -455,6 +504,30 @@ public class SettlementServiceImpl implements SettlementService {
                 || order.getOrderStatus() != ConsumptionOrderStatus.COMPLETED
                 || order.getSettlementStatus() != SettlementStatus.NOT_INCLUDED
                 || order.getCompletedTime() == null) {
+            throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
+        }
+        try {
+            long expectedGross = Math.multiplyExact(order.getConsumePoints(), 100L);
+            long splitTotal = Math.addExact(order.getPlatformFeeCent(), order.getStorePayableCent());
+            if (expectedGross != order.getGrossAmountCent() || splitTotal != order.getGrossAmountCent()) {
+                throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
+            }
+        } catch (ArithmeticException ex) {
+            throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
+        }
+    }
+
+    private void validateEligibleReversal(ConsumptionOrder order) {
+        if (order == null || order.getId() == null || order.getStoreId() == null
+                || order.getStoreId() <= 0 || order.getConsumePoints() == null
+                || order.getConsumePoints() <= 0 || order.getGrossAmountCent() == null
+                || order.getGrossAmountCent() <= 0 || order.getPlatformFeeCent() == null
+                || order.getPlatformFeeCent() < 0 || order.getStorePayableCent() == null
+                || order.getStorePayableCent() < 0
+                || order.getOrderStatus() != ConsumptionOrderStatus.REVERSED
+                || order.getSettlementStatus() != SettlementStatus.SETTLED
+                || order.getCompletedTime() == null || order.getReversedTime() == null
+                || normalizeOptional(order.getReversalReason()) == null) {
             throw new CustomException(ExceptionEnum.PLATFORM_SETTLEMENT_DATA_INVALID);
         }
         try {
@@ -842,6 +915,12 @@ public class SettlementServiceImpl implements SettlementService {
             long grossAmountCent,
             long platformFeeCent,
             long storePayableCent
+    ) {
+    }
+
+    private record SettlementBatch(
+            List<ConsumptionOrder> orders,
+            List<ConsumptionOrder> reversals
     ) {
     }
 

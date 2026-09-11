@@ -197,8 +197,9 @@ public class AdminExcelReportWriter {
             XSSFSheet sheet = createSheet(workbook, "消费订单");
             String[] headers = {
                     "创建时间", "订单号", "订单状态", "用户ID", "用户手机号", "用户昵称", "门店编码", "消费门店",
-                    "消费金额(元)", "消费积分", "平台费率", "平台手续费(元)", "门店应付(元)", "核销方式",
-                    "结算状态", "操作员ID", "操作员", "过期时间", "用户确认时间", "完成时间", "备注"
+                     "消费金额(元)", "消费积分", "平台费率", "平台手续费(元)", "门店应付(元)", "核销方式",
+                     "结算状态", "操作员ID", "操作员", "过期时间", "用户确认时间", "完成时间",
+                     "冲正操作员ID", "冲正时间", "冲正原因", "备注"
             };
             int columnCount = headers.length;
             writeOrderMeta(sheet, styles, "消费订单报表", startDate, endDate, scopeLabel,
@@ -227,12 +228,15 @@ public class AdminExcelReportWriter {
                 writeLong(row, column++, order.operatorId(), styles.integer());
                 writeText(row, column++, order.operatorName(), styles.text());
                 writeDateTime(row, column++, order.expiresTime(), styles.dateTime());
-                writeDateTime(row, column++, order.confirmedTime(), styles.dateTime());
-                writeDateTime(row, column++, order.completedTime(), styles.dateTime());
-                writeText(row, column, order.remark(), styles.wrappedText());
-            }
-            setWidths(sheet, 20, 30, 16, 12, 18, 18, 16, 24, 16, 13, 13, 17, 16, 14,
-                    16, 12, 16, 20, 20, 20, 30);
+                 writeDateTime(row, column++, order.confirmedTime(), styles.dateTime());
+                 writeDateTime(row, column++, order.completedTime(), styles.dateTime());
+                 writeLong(row, column++, order.reversedBy(), styles.integer());
+                 writeDateTime(row, column++, order.reversedTime(), styles.dateTime());
+                 writeText(row, column++, order.reversalReason(), styles.wrappedText());
+                 writeText(row, column, order.remark(), styles.wrappedText());
+             }
+             setWidths(sheet, 20, 30, 16, 12, 18, 18, 16, 24, 16, 13, 13, 17, 16, 14,
+                     16, 12, 16, 20, 20, 20, 14, 20, 30, 30);
             finishDetailTable(sheet, headerRow, columnCount, 2);
             workbook.write(output);
             return output.toByteArray();

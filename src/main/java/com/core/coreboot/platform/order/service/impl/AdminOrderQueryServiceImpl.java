@@ -538,6 +538,9 @@ public class AdminOrderQueryServiceImpl implements AdminOrderQueryService {
                 order.getExpiresTime(),
                 order.getConfirmedTime(),
                 order.getCompletedTime(),
+                order.getReversedBy(),
+                order.getReversedTime(),
+                order.getReversalReason(),
                 order.getCreateTime()
         );
     }

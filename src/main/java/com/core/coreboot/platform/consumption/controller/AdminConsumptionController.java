@@ -3,9 +3,12 @@ package com.core.coreboot.platform.consumption.controller;
 import com.core.coreboot.common.ApiRestResponse;
 import com.core.coreboot.platform.auth.security.AdminUserPrincipal;
 import com.core.coreboot.platform.consumption.model.AdminConsumptionOrderStatusView;
+import com.core.coreboot.platform.consumption.model.AdminConsumptionReversalRequest;
 import com.core.coreboot.platform.consumption.model.AdminPrepareConsumptionRequest;
+import com.core.coreboot.platform.consumption.model.ConsumptionReversalResult;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionResult;
 import com.core.coreboot.platform.consumption.service.AdminConsumptionOrderQueryService;
+import com.core.coreboot.platform.consumption.service.ConsumptionReversalService;
 import com.core.coreboot.platform.consumption.service.PrepareConsumptionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminConsumptionController {
     private final PrepareConsumptionService prepareConsumptionService;
     private final AdminConsumptionOrderQueryService orderQueryService;
+    private final ConsumptionReversalService consumptionReversalService;
 
     @Operation(summary = "创建待客户 PIN 确认的消费订单")
     @PostMapping("/prepare")
@@ -53,5 +57,24 @@ public class AdminConsumptionController {
             @AuthenticationPrincipal AdminUserPrincipal principal
     ) {
         return ApiRestResponse.success(orderQueryService.getStatus(principal.getUserId(), orderNo));
+    }
+
+    @Operation(summary = "超级管理员冲正已完成的消费订单")
+    @PostMapping("/{orderNo}/reversal")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiRestResponse<ConsumptionReversalResult> reverse(
+            @PathVariable String orderNo,
+            @Valid @RequestBody AdminConsumptionReversalRequest request,
+            @AuthenticationPrincipal AdminUserPrincipal principal,
+            @Parameter(description = "请求唯一键，重试时必须保持不变", required = true)
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest servletRequest
+    ) {
+        return ApiRestResponse.success(consumptionReversalService.reverse(request.toCommand(
+                orderNo,
+                principal.getUserId(),
+                idempotencyKey,
+                servletRequest.getRemoteAddr()
+        )));
     }
 }

@@ -28,6 +28,9 @@ public record AdminConsumptionOrderView(
         LocalDateTime expiresTime,
         LocalDateTime confirmedTime,
         LocalDateTime completedTime,
+        Long reversedBy,
+        LocalDateTime reversedTime,
+        String reversalReason,
         LocalDateTime createTime
 ) {
 }

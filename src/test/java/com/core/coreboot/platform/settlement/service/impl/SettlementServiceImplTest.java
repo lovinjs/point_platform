@@ -145,6 +145,63 @@ class SettlementServiceImplTest {
     }
 
     @Test
+    void shouldGenerateNegativeAdjustmentForPreviouslySettledReversal() {
+        allowSuperAdmin();
+        SettlementPeriod period = openPeriod();
+        Store store = store();
+        ConsumptionOrder reversal = completedOrder();
+        reversal.setOrderStatus(ConsumptionOrderStatus.REVERSED);
+        reversal.setSettlementStatus(SettlementStatus.SETTLED);
+        reversal.setReversedBy(5L);
+        reversal.setReversedTime(LocalDateTime.of(2026, 8, 25, 12, 0));
+        reversal.setReversalReason("重复扣减");
+        AtomicReference<StoreSettlement> savedSettlement = new AtomicReference<>();
+
+        when(settlementPeriodMapper.insertOpenPeriod(
+                "2026-08",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31)
+        )).thenReturn(1);
+        when(settlementPeriodMapper.selectByPeriodCodeForUpdate("2026-08")).thenReturn(period);
+        when(storeSettlementMapper.selectByPeriodId(1L)).thenAnswer(invocation ->
+                savedSettlement.get() == null ? List.of() : List.of(savedSettlement.get())
+        );
+        when(consumptionOrderMapper.selectEligibleForSettlement(any(), any())).thenReturn(List.of());
+        when(consumptionOrderMapper.selectEligibleReversalsForSettlement(any()))
+                .thenReturn(List.of(reversal));
+        when(storeMapper.selectById(2L)).thenReturn(store);
+        when(storeSettlementMapper.insert(any(StoreSettlement.class))).thenAnswer(invocation -> {
+            StoreSettlement settlement = invocation.getArgument(0);
+            settlement.setId(20L);
+            savedSettlement.set(settlement);
+            return 1;
+        });
+        when(storeSettlementItemMapper.insert(any(StoreSettlementItem.class))).thenReturn(1);
+        when(consumptionOrderMapper.markReversalAdjusted(10L)).thenReturn(1);
+        when(settlementPeriodMapper.markGenerated(1L, NOW)).thenReturn(1);
+        when(auditLogMapper.insert(any(AuditLog.class))).thenReturn(1);
+        when(settlementPeriodMapper.selectByIds(anyCollection())).thenReturn(List.of(period));
+        when(storeMapper.selectByIds(anyCollection())).thenReturn(List.of(store));
+
+        var result = service.generate(new SettlementGenerateCommand("2026-08", 5L, null));
+
+        var summary = result.settlements().getFirst();
+        assertEquals(-100L, summary.totalConsumePoints());
+        assertEquals(-10_000L, summary.grossAmountCent());
+        assertEquals(-500L, summary.platformFeeCent());
+        assertEquals(-9_500L, summary.payableAmountCent());
+
+        ArgumentCaptor<StoreSettlementItem> itemCaptor =
+                ArgumentCaptor.forClass(StoreSettlementItem.class);
+        verify(storeSettlementItemMapper).insert(itemCaptor.capture());
+        assertEquals(SettlementItemType.REVERSAL_ADJUSTMENT, itemCaptor.getValue().getItemType());
+        assertEquals(-100L, itemCaptor.getValue().getPointsDelta());
+        assertEquals(-9_500L, itemCaptor.getValue().getStorePayableCent());
+        assertEquals("重复扣减", itemCaptor.getValue().getAdjustmentReason());
+        verify(consumptionOrderMapper).markReversalAdjusted(10L);
+    }
+
+    @Test
     void shouldRejectCurrentMonthGeneration() {
         allowSuperAdmin();
 
@@ -294,6 +351,41 @@ class SettlementServiceImplTest {
         assertEquals(StoreSettlementStatus.PAID, result.settlement().settlementStatus());
         assertEquals("BANK-SETTLEMENT-001", result.settlement().paymentReference());
         verify(consumptionOrderMapper).markSettlementItemsSettled(20L);
+        verify(settlementPeriodMapper).markPaidIfAll(1L);
+    }
+
+    @Test
+    void shouldSettleAdjustmentOnlyStatementWithoutUpdatingOriginalOrderAgain() {
+        allowSuperAdmin();
+        StoreSettlement confirmed = settlement(StoreSettlementStatus.CONFIRMED, null);
+        confirmed.setTotalConsumePoints(-100L);
+        confirmed.setGrossAmountCent(-10_000L);
+        confirmed.setPlatformFeeCent(-500L);
+        confirmed.setPayableAmountCent(-9_500L);
+        StoreSettlement paid = settlement(StoreSettlementStatus.PAID, "BANK-RECEIPT-001");
+        paid.setPaidTime(NOW);
+        when(storeSettlementMapper.selectBySettlementNoForUpdate("STL100")).thenReturn(confirmed);
+        when(storeSettlementItemMapper.selectCount(any())).thenReturn(1L, 0L);
+        when(storeSettlementMapper.markPaid(
+                20L,
+                NOW,
+                "BANK-RECEIPT-001",
+                "门店已退回"
+        )).thenReturn(1);
+        when(auditLogMapper.insert(any(AuditLog.class))).thenReturn(1);
+        when(storeSettlementMapper.selectBySettlementNo("STL100")).thenReturn(paid);
+        stubDetailDependencies();
+
+        var result = service.markPaid(new SettlementPaymentCommand(
+                "STL100",
+                5L,
+                "BANK-RECEIPT-001",
+                "门店已退回",
+                null
+        ));
+
+        assertEquals(StoreSettlementStatus.PAID, result.settlement().settlementStatus());
+        verify(consumptionOrderMapper, never()).markSettlementItemsSettled(any());
         verify(settlementPeriodMapper).markPaidIfAll(1L);
     }
 
