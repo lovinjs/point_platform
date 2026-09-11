@@ -8,7 +8,6 @@ import com.core.coreboot.platform.common.enums.ConsumptionOrderStatus;
 import com.core.coreboot.platform.common.enums.ConsumptionVerificationMode;
 import com.core.coreboot.platform.common.enums.CustomerStatus;
 import com.core.coreboot.platform.common.enums.RoleCode;
-import com.core.coreboot.platform.consumption.config.ConsumptionProperties;
 import com.core.coreboot.platform.consumption.entity.ConsumptionOrder;
 import com.core.coreboot.platform.consumption.mapper.ConsumptionOrderMapper;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionCommand;
@@ -19,6 +18,8 @@ import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.mapper.PointAccountMapper;
+import com.core.coreboot.platform.setting.model.CurrentBusinessPolicy;
+import com.core.coreboot.platform.setting.service.PlatformBusinessSettingService;
 import com.core.coreboot.platform.staff.service.StaffStoreAuthorizationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -57,13 +57,15 @@ class PrepareConsumptionServiceImplTest {
     private ConsumptionOrderMapper consumptionOrderMapper;
     @Mock
     private AuditLogMapper auditLogMapper;
+    @Mock
+    private PlatformBusinessSettingService businessSettingService;
 
     private PrepareConsumptionServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        ConsumptionProperties properties = new ConsumptionProperties();
-        properties.setPendingTtl(Duration.ofMinutes(5));
+        when(businessSettingService.currentPolicy())
+                .thenReturn(new CurrentBusinessPolicy(500, 5));
         Clock clock = Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
         service = new PrepareConsumptionServiceImpl(
                 customerUserMapper,
@@ -73,7 +75,7 @@ class PrepareConsumptionServiceImplTest {
                 consumptionOrderMapper,
                 auditLogMapper,
                 new ObjectMapper(),
-                properties,
+                businessSettingService,
                 clock
         );
     }
@@ -118,6 +120,43 @@ class PrepareConsumptionServiceImplTest {
         assertEquals("CSM-EXISTING", result.orderNo());
         verify(pointAccountMapper, never()).selectByCustomerIdForUpdate(any());
         verify(consumptionOrderMapper, never()).insert(any(ConsumptionOrder.class));
+    }
+
+    @Test
+    void shouldReplayExistingOrderAfterPlatformFeeChanges() {
+        allowActiveCustomerAndStore();
+        when(businessSettingService.currentPolicy())
+                .thenReturn(new CurrentBusinessPolicy(600, 10));
+        ConsumptionOrder existing = existingOrder();
+        when(consumptionOrderMapper.selectByIdempotencyKey("prepare-001")).thenReturn(existing);
+
+        PrepareConsumptionResult result = service.prepare(command());
+
+        assertEquals(500, result.platformFeeRateBps());
+        assertEquals(NOW.plusMinutes(5), result.expiresTime());
+        verify(pointAccountMapper, never()).selectByCustomerIdForUpdate(any());
+    }
+
+    @Test
+    void shouldApplyCurrentBusinessPolicyToNewOrder() {
+        allowActiveCustomerAndStore();
+        when(businessSettingService.currentPolicy())
+                .thenReturn(new CurrentBusinessPolicy(600, 10));
+        when(pointAccountMapper.selectByCustomerIdForUpdate(1L))
+                .thenReturn(PointAccount.builder().id(9L).customerId(1L).availablePoints(150L).build());
+        when(consumptionOrderMapper.insert(any(ConsumptionOrder.class))).thenAnswer(invocation -> {
+            ConsumptionOrder order = invocation.getArgument(0);
+            order.setId(20L);
+            return 1;
+        });
+        when(auditLogMapper.insert(any(AuditLog.class))).thenReturn(1);
+
+        PrepareConsumptionResult result = service.prepare(command());
+
+        assertEquals(600, result.platformFeeRateBps());
+        assertEquals(600L, result.platformFeeCent());
+        assertEquals(9_400L, result.storePayableCent());
+        assertEquals(NOW.plusMinutes(10), result.expiresTime());
     }
 
     @Test

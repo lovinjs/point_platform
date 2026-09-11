@@ -12,7 +12,6 @@ import com.core.coreboot.platform.common.enums.RoleCode;
 import com.core.coreboot.platform.common.enums.SettlementStatus;
 import com.core.coreboot.platform.common.model.PointMoneyPolicy;
 import com.core.coreboot.platform.common.support.BusinessNoGenerator;
-import com.core.coreboot.platform.consumption.config.ConsumptionProperties;
 import com.core.coreboot.platform.consumption.entity.ConsumptionOrder;
 import com.core.coreboot.platform.consumption.mapper.ConsumptionOrderMapper;
 import com.core.coreboot.platform.consumption.model.PrepareConsumptionCommand;
@@ -24,6 +23,8 @@ import com.core.coreboot.platform.customer.mapper.CustomerSecurityMapper;
 import com.core.coreboot.platform.customer.mapper.CustomerUserMapper;
 import com.core.coreboot.platform.point.entity.PointAccount;
 import com.core.coreboot.platform.point.mapper.PointAccountMapper;
+import com.core.coreboot.platform.setting.model.CurrentBusinessPolicy;
+import com.core.coreboot.platform.setting.service.PlatformBusinessSettingService;
 import com.core.coreboot.platform.staff.service.StaffStoreAuthorizationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,7 +52,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
     private final ConsumptionOrderMapper consumptionOrderMapper;
     private final AuditLogMapper auditLogMapper;
     private final ObjectMapper objectMapper;
-    private final ConsumptionProperties properties;
+    private final PlatformBusinessSettingService businessSettingService;
     private final Clock clock;
 
     @Autowired
@@ -63,7 +64,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
             ConsumptionOrderMapper consumptionOrderMapper,
             AuditLogMapper auditLogMapper,
             ObjectMapper objectMapper,
-            ConsumptionProperties properties
+            PlatformBusinessSettingService businessSettingService
     ) {
         this(
                 customerUserMapper,
@@ -73,7 +74,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
                 consumptionOrderMapper,
                 auditLogMapper,
                 objectMapper,
-                properties,
+                businessSettingService,
                 Clock.systemDefaultZone()
         );
     }
@@ -86,7 +87,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
             ConsumptionOrderMapper consumptionOrderMapper,
             AuditLogMapper auditLogMapper,
             ObjectMapper objectMapper,
-            ConsumptionProperties properties,
+            PlatformBusinessSettingService businessSettingService,
             Clock clock
     ) {
         this.customerUserMapper = customerUserMapper;
@@ -96,7 +97,7 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
         this.consumptionOrderMapper = consumptionOrderMapper;
         this.auditLogMapper = auditLogMapper;
         this.objectMapper = objectMapper;
-        this.properties = properties;
+        this.businessSettingService = businessSettingService;
         this.clock = clock;
     }
 
@@ -145,11 +146,12 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
             throw new CustomException(ExceptionEnum.PLATFORM_CONSUMPTION_POINTS_INVALID);
         }
 
+        CurrentBusinessPolicy policy = businessSettingService.currentPolicy();
         PointMoneyPolicy.SettlementAmounts amounts;
         try {
             amounts = PointMoneyPolicy.settlementAmounts(
                     command.consumePoints(),
-                    PointMoneyPolicy.DEFAULT_PLATFORM_FEE_RATE_BPS
+                    policy.platformFeeRateBps()
             );
         } catch (IllegalArgumentException | ArithmeticException ex) {
             throw new CustomException(ExceptionEnum.PLATFORM_CONSUMPTION_POINTS_INVALID);
@@ -171,13 +173,13 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
                 command.operatorId(),
                 command.consumePoints(),
                 amounts.grossAmountCent(),
-                PointMoneyPolicy.DEFAULT_PLATFORM_FEE_RATE_BPS,
+                policy.platformFeeRateBps(),
                 amounts.platformFeeCent(),
                 amounts.storePayableCent(),
                 idempotencyKey,
                 remark,
                 clientIp,
-                validatedPendingTtl()
+                validatedPendingTtl(policy.consumptionPendingTtlMinutes())
         );
     }
 
@@ -212,10 +214,6 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
                 && Objects.equals(existingOrder.getStoreId(), command.storeId())
                 && Objects.equals(existingOrder.getOperatorId(), command.operatorId())
                 && Objects.equals(existingOrder.getConsumePoints(), command.consumePoints())
-                && Objects.equals(existingOrder.getGrossAmountCent(), command.grossAmountCent())
-                && Objects.equals(existingOrder.getPlatformFeeRateBps(), command.platformFeeRateBps())
-                && Objects.equals(existingOrder.getPlatformFeeCent(), command.platformFeeCent())
-                && Objects.equals(existingOrder.getStorePayableCent(), command.storePayableCent())
                 && existingOrder.getVerificationMode() == ConsumptionVerificationMode.CUSTOMER_PIN
                 && Objects.equals(existingOrder.getRemark(), command.remark());
         if (!sameRequest) {
@@ -312,8 +310,8 @@ public class PrepareConsumptionServiceImpl implements PrepareConsumptionService 
         );
     }
 
-    private Duration validatedPendingTtl() {
-        Duration pendingTtl = properties.getPendingTtl();
+    private Duration validatedPendingTtl(int pendingTtlMinutes) {
+        Duration pendingTtl = Duration.ofMinutes(pendingTtlMinutes);
         if (pendingTtl == null
                 || pendingTtl.isZero()
                 || pendingTtl.isNegative()

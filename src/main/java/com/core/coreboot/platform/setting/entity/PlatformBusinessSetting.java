@@ -1,0 +1,27 @@
+package com.core.coreboot.platform.setting.entity;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@TableName("t_platform_business_setting")
+public class PlatformBusinessSetting {
+    @TableId(type = IdType.INPUT)
+    private Long id;
+    private Integer platformFeeRateBps;
+    private Integer consumptionPendingTtlMinutes;
+    private Long version;
+    private Long lastUpdatedBy;
+    private LocalDateTime createTime;
+    private LocalDateTime updateTime;
+}
