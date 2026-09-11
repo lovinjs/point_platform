@@ -574,9 +574,13 @@ GET  /api/v1/customer/recharge-orders
 GET  /api/v1/customer/consumption-orders
 GET  /api/v1/customer/consumption-orders/pending
 POST /api/v1/customer/consumption-orders/{orderNo}/confirm
+GET  /api/v1/customer/stores
+GET  /api/v1/customer/stores/{storeId}
 ~~~
 
 微信 H5 登录、短信验证码绑定手机号、消费密码配置、消费确认以及客户账单查询已经实现。除渠道登录过程外，客户业务接口统一使用 `/api/v1/customer/**`，由 H5 和未来小程序共用；不同渠道只增加各自的 customer_identity。
+
+合作门店列表和详情属于公开营业信息，允许未登录访问，但只返回正常营业门店的展示名称、所属商户展示名称、地址和联系电话；不返回合作协议、证照、商户负责人或后台员工资料。
 
 涉及写入的接口建议支持 Idempotency-Key，后端将其保存到对应订单或流水表，并建立唯一约束。
 
