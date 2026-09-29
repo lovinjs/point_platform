@@ -15,7 +15,7 @@
 
 ## 本地联调配置
 
-本地开发暂不接短信供应商。显式开启日志发送模式：
+本地开发可以显式开启日志发送模式：
 
 ```text
 PLATFORM_PHONE_VERIFICATION_MODE=LOG
@@ -27,7 +27,9 @@ PLATFORM_PHONE_VERIFICATION_MODE=LOG
 本地联调短信验证码=123456，手机号=138****8000，有效期=300秒；正式环境禁止使用 LOG 模式
 ```
 
-默认模式为 `DISABLED`，未配置时发送接口返回 503。正式环境禁止使用 `LOG`，接入真实短信供应商后应由对应 `PhoneVerificationSender` 实现替换。
+默认模式为 `DISABLED`，未配置时发送接口返回 503。正式环境禁止使用 `LOG`。
+
+阿里云真实短信已接入：将模式设为 `ALIYUN`，配置 RAM 用户的 AccessKey、短信签名和模板后重新启动后端。手机号绑定和找回消费密码共用该发送器，配置步骤见 [阿里云短信验证码接入](customer-aliyun-sms.md)。
 
 ## 默认防刷规则
 

@@ -75,6 +75,13 @@ platform:
     phone-hourly-limit: ${PLATFORM_PHONE_VERIFICATION_PHONE_HOURLY_LIMIT:5}
     phone-daily-limit: ${PLATFORM_PHONE_VERIFICATION_PHONE_DAILY_LIMIT:10}
     global-daily-limit: ${PLATFORM_PHONE_VERIFICATION_GLOBAL_DAILY_LIMIT:5000}
+    aliyun:
+      access-key-id: ${ALIBABA_CLOUD_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:}
+      sign-name: ${PLATFORM_SMS_ALIYUN_SIGN_NAME:}
+      template-code: ${PLATFORM_SMS_ALIYUN_TEMPLATE_CODE:}
+      connect-timeout: ${PLATFORM_SMS_ALIYUN_CONNECT_TIMEOUT:PT5S}
+      read-timeout: ${PLATFORM_SMS_ALIYUN_READ_TIMEOUT:PT8S}
   security:
     customer-pin:
       max-failed-attempts: ${PLATFORM_CUSTOMER_PIN_MAX_FAILED_ATTEMPTS:5}

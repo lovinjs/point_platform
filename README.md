@@ -39,6 +39,7 @@ http://localhost:8888/swagger-ui/index.html
 - 门店自然月结算联调：[`docs/admin-settlement-api.md`](docs/admin-settlement-api.md)
 - 客户认证基础：[`docs/customer-auth-foundation.md`](docs/customer-auth-foundation.md)
 - 客户手机号绑定：[`docs/customer-phone-binding.md`](docs/customer-phone-binding.md)
+- 阿里云短信验证码配置：[`docs/customer-aliyun-sms.md`](docs/customer-aliyun-sms.md)
 - 数据库版本管理：[`docs/database-migrations.md`](docs/database-migrations.md)
 - 本地演示数据：[`dev/sql/seed-local-demo-data.sql`](dev/sql/seed-local-demo-data.sql)（禁止生产执行）
 - V1 表结构：[`src/main/resources/db/migration/V1__init_point_platform.sql`](src/main/resources/db/migration/V1__init_point_platform.sql)

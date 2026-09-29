@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -114,6 +115,40 @@ class CustomerPhoneServiceImplTest {
 
         assertEquals(30052, exception.getCode());
         verify(verificationCodeStore, never()).reserveSend(any(), any(), any());
+    }
+
+    @Test
+    void shouldInvalidateCodeWhenSmsProviderRejectsSend() {
+        when(customerUserMapper.selectById(CUSTOMER_ID)).thenReturn(activeCustomer(null));
+        doThrow(new CustomException(30050, "短信发送失败，请稍后重试"))
+                .when(verificationSender).send(any(), any(), any());
+
+        assertEquals(30050, assertThrows(CustomException.class,
+                () -> service.requestVerificationCode(CUSTOMER_ID, PHONE)).getCode());
+        verify(verificationCodeStore).invalidate(CUSTOMER_ID, PHONE);
+    }
+
+    @Test
+    void shouldInvalidateRecoveryCodeWhenSmsProviderRejectsSend() {
+        when(customerUserMapper.selectById(CUSTOMER_ID)).thenReturn(activeCustomer(PHONE));
+        doThrow(new CustomException(30050, "短信发送失败，请稍后重试"))
+                .when(verificationSender).send(any(), any(), any());
+
+        assertEquals(30050, assertThrows(CustomException.class,
+                () -> service.requestBoundPhoneVerificationCode(CUSTOMER_ID)).getCode());
+        verify(verificationCodeStore).invalidate(CUSTOMER_ID, PHONE);
+    }
+
+    @Test
+    void shouldNotReserveLimitsOrSaveCodeWhenSenderIsNotConfigured() {
+        when(customerUserMapper.selectById(CUSTOMER_ID)).thenReturn(activeCustomer(null));
+        doThrow(new CustomException(30042, "短信验证码服务尚未配置"))
+                .when(verificationSender).validateReady();
+
+        assertEquals(30042, assertThrows(CustomException.class,
+                () -> service.requestVerificationCode(CUSTOMER_ID, PHONE)).getCode());
+        verify(verificationCodeStore, never()).reserveSend(any(), any(), any());
+        verify(verificationCodeStore, never()).saveCode(any(), any(), any(), any());
     }
 
     @Test

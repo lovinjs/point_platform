@@ -2,7 +2,9 @@ package com.core.coreboot.platform.customer.phone.config;
 
 import com.core.coreboot.exception.CustomException;
 import com.core.coreboot.exception.ExceptionEnum;
+import com.core.coreboot.platform.customer.phone.service.AliyunPhoneVerificationSender;
 import com.core.coreboot.platform.customer.phone.service.PhoneVerificationSender;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -23,6 +25,19 @@ public class PhoneVerificationSenderConfiguration {
     )
     public PhoneVerificationSender loggingPhoneVerificationSender() {
         return new LoggingPhoneVerificationSender();
+    }
+
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "platform.phone-verification",
+            name = "mode",
+            havingValue = "ALIYUN"
+    )
+    public PhoneVerificationSender aliyunPhoneVerificationSender(
+            AliyunSmsProperties properties,
+            ObjectMapper objectMapper
+    ) {
+        return new AliyunPhoneVerificationSender(properties, objectMapper);
     }
 
     @Bean
