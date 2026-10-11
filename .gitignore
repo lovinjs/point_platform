@@ -6,6 +6,9 @@ target/
 .env
 .env.*
 *.env
+deploy/app.jar
+deploy/*.tar
+deploy/upload/
 
 ### STS ###
 .apt_generated

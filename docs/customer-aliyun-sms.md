@@ -42,9 +42,11 @@ PLATFORM_PHONE_VERIFICATION_CODE_TTL=PT5M
 | `PLATFORM_PHONE_VERIFICATION_CODE_TTL` | `PT5M` | 验证码有效期，允许 1 到 10 分钟 |
 | `PLATFORM_SMS_ALIYUN_CONNECT_TIMEOUT` | `PT5S` | 连接超时，允许 1 到 30 秒 |
 | `PLATFORM_SMS_ALIYUN_READ_TIMEOUT` | `PT8S` | 响应超时，允许 1 到 30 秒 |
-| `PLATFORM_PHONE_VERIFICATION_GLOBAL_DAILY_LIMIT` | `5000` | 全平台 24 小时发送上限；初期可设为 `200` |
+| `PLATFORM_PHONE_VERIFICATION_GLOBAL_DAILY_LIMIT` | `5000` | 代码默认全平台 24 小时发送上限；当前预发布服务器显式设为 `50` |
 
 原有客户和手机号的小时/24 小时限额、60 秒发送间隔、连续输错限制继续生效，不引入 IP 限制。
+
+当前 Docker 部署应编辑服务器 `backend.env` 中的对应变量，再执行 `docker compose up -d --force-recreate --no-deps backend`，单纯 restart 不会更新环境变量。保留数据库、Redis、微信和 JWT 原配置；Compose raw env_file 值不额外加引号。完整服务器联调步骤见 [H5 预发布部署](h5-staging-deployment.md) 阶段六。
 
 密钥不要提交到 Git。若使用本地 `.env`，需由现有 IDE 的 EnvFile 配置加载，Spring Boot 不会自动读取任意 `.env` 文件。
 

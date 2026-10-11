@@ -49,3 +49,12 @@ http://localhost:8888/swagger-ui/index.html
 - 新业务代码统一放在 `com.core.coreboot.platform` 包下，旧商城模块暂时保留。
 
 当前项目已启用 Flyway，后端启动时自动校验并执行尚未应用的迁移。已经由 Flyway 执行过的脚本禁止修改；本地首次接管原手工建库时，请按数据库版本管理文档重建为空库，不要再次手工导入 Flyway 脚本。
+
+## 5 1Panel 服务器内部部署
+
+部署步骤：[`docs/server-private-deployment.md`](docs/server-private-deployment.md)。
+
+使用 Java 21 执行 `.\mvnw.cmd -Pserver test package`，生成可执行 JAR，再在本地构建容器镜像。
+`server` 打包选择面向 MySQL 8.4 的驱动，不改变默认的本地 MySQL 5.7 驱动。
+容器自动使用 Spring `prod` 配置，复用 1Panel 已安装的数据库，业务端口仅绑定服务器 `127.0.0.1`。
+真实部署环境文件、JAR、镜像导出包和上传目录均不提交 Git。

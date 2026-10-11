@@ -1,0 +1,46 @@
+name: point-platform
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?请填写本地构建的后端镜像标签}
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: ./backend.env
+        format: raw
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Shanghai
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx640m -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8888}:8888"
+    volumes:
+      - type: bind
+        source: ./upload
+        target: /opt/app/upload
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,mode=1777
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1280m
+    cpus: 1.5
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - dependencies
+
+networks:
+  dependencies:
+    external: true
+    name: ${PLATFORM_DOCKER_NETWORK:?请填写现有 MySQL 和 Redis 所在的 Docker 网络名称}
