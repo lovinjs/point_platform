@@ -7,6 +7,7 @@ import com.core.coreboot.platform.common.enums.RoleCode;
 import com.core.coreboot.platform.common.enums.SysUserStatus;
 import com.core.coreboot.platform.recharge.model.AdminRechargeRefundRequest;
 import com.core.coreboot.platform.recharge.model.RechargeRefundCommand;
+import com.core.coreboot.platform.recharge.model.RechargeRefundEligibility;
 import com.core.coreboot.platform.recharge.model.RechargeRefundResult;
 import com.core.coreboot.platform.recharge.service.RechargeRefundService;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,20 @@ class AdminRechargeRefundControllerTest {
     private RechargeRefundService rechargeRefundService;
     @InjectMocks
     private AdminRechargeRefundController controller;
+
+    @Test
+    void shouldUseAuthenticatedOperatorForReadOnlyEligibility() {
+        AdminUserPrincipal principal = new AdminUserPrincipal(
+                3L, "platform.admin", "hash", "超级管理员", SysUserStatus.ACTIVE,
+                null, 0, Set.of(RoleCode.SUPER_ADMIN), Set.of()
+        );
+        when(rechargeRefundService.getEligibility(3L, "RCH100"))
+                .thenReturn(new RechargeRefundEligibility("RCH100", true, null));
+
+        controller.eligibility("RCH100", principal);
+
+        verify(rechargeRefundService).getEligibility(3L, "RCH100");
+    }
 
     @Test
     void shouldRestrictControllerAndDeriveOperatorFromAuthentication() {

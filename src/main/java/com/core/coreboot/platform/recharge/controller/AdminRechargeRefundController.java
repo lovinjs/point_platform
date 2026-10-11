@@ -3,6 +3,7 @@ package com.core.coreboot.platform.recharge.controller;
 import com.core.coreboot.common.ApiRestResponse;
 import com.core.coreboot.platform.auth.security.AdminUserPrincipal;
 import com.core.coreboot.platform.recharge.model.AdminRechargeRefundRequest;
+import com.core.coreboot.platform.recharge.model.RechargeRefundEligibility;
 import com.core.coreboot.platform.recharge.model.RechargeRefundResult;
 import com.core.coreboot.platform.recharge.service.RechargeRefundService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,6 +29,15 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class AdminRechargeRefundController {
     private final RechargeRefundService rechargeRefundService;
+
+    @Operation(summary = "检查充值全额退款资格（只读，不冻结积分）")
+    @GetMapping("/{orderNo}/refund-eligibility")
+    public ApiRestResponse<RechargeRefundEligibility> eligibility(
+            @PathVariable String orderNo,
+            @AuthenticationPrincipal AdminUserPrincipal principal
+    ) {
+        return ApiRestResponse.success(rechargeRefundService.getEligibility(principal.getUserId(), orderNo));
+    }
 
     @Operation(summary = "登记实际退款并整笔退回未消费充值")
     @PostMapping("/{orderNo}/refund")

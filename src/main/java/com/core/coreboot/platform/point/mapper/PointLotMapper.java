@@ -14,6 +14,15 @@ public interface PointLotMapper extends BaseMapper<PointLot> {
             SELECT id, customer_id, source_recharge_order_id, total_points, remaining_points,
                    lot_status, create_time, update_time
             FROM t_point_lot
+            WHERE source_recharge_order_id = #{rechargeOrderId}
+            LIMIT 1
+            """)
+    PointLot selectByRechargeOrderId(@Param("rechargeOrderId") Long rechargeOrderId);
+
+    @Select("""
+            SELECT id, customer_id, source_recharge_order_id, total_points, remaining_points,
+                   lot_status, create_time, update_time
+            FROM t_point_lot
             WHERE customer_id = #{customerId}
               AND lot_status = 'AVAILABLE'
               AND remaining_points > 0

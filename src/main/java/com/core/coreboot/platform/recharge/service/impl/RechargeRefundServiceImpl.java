@@ -27,6 +27,7 @@ import com.core.coreboot.platform.recharge.entity.RechargeRefund;
 import com.core.coreboot.platform.recharge.mapper.RechargeOrderMapper;
 import com.core.coreboot.platform.recharge.mapper.RechargeRefundMapper;
 import com.core.coreboot.platform.recharge.model.RechargeRefundCommand;
+import com.core.coreboot.platform.recharge.model.RechargeRefundEligibility;
 import com.core.coreboot.platform.recharge.model.RechargeRefundResult;
 import com.core.coreboot.platform.recharge.service.RechargeRefundService;
 import com.core.coreboot.platform.staff.entity.SysUser;
@@ -116,6 +117,49 @@ public class RechargeRefundServiceImpl implements RechargeRefundService {
         this.auditLogMapper = auditLogMapper;
         this.objectMapper = objectMapper;
         this.clock = clock;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RechargeRefundEligibility getEligibility(Long operatorId, String orderNo) {
+        String normalizedOrderNo = normalizeRequired(orderNo);
+        if (operatorId == null || operatorId <= 0 || normalizedOrderNo == null
+                || normalizedOrderNo.length() > ORDER_NO_MAX_LENGTH) {
+            throw new CustomException(ExceptionEnum.PLATFORM_INVALID_REQUEST);
+        }
+        requireSuperAdmin(operatorId);
+        RechargeOrder order = rechargeOrderMapper.selectByOrderNo(normalizedOrderNo);
+        if (order == null) {
+            throw new CustomException(ExceptionEnum.PLATFORM_RECHARGE_ORDER_NOT_FOUND);
+        }
+
+        // 只读检查不冻结积分；真正登记退款仍在原事务中锁定账户与批次后重新校验。
+        try {
+            requireOrderIdentity(order);
+            if (order.getOrderStatus() != RechargeOrderStatus.COMPLETED
+                    || rechargeRefundMapper.selectByRechargeOrderId(order.getId()) != null) {
+                throw new CustomException(ExceptionEnum.PLATFORM_RECHARGE_NOT_REFUNDABLE);
+            }
+            PointAccount account = pointAccountMapper.selectByCustomerId(order.getCustomerId());
+            if (account == null || account.getId() == null || account.getAvailablePoints() == null
+                    || !Objects.equals(account.getCustomerId(), order.getCustomerId())) {
+                throw new CustomException(ExceptionEnum.PLATFORM_POINT_ACCOUNT_ERROR);
+            }
+            PointLot lot = pointLotMapper.selectByRechargeOrderId(order.getId());
+            validateUntouchedLot(order, lot);
+            if (lot.getId() == null) {
+                throw new CustomException(ExceptionEnum.PLATFORM_POINT_ACCOUNT_ERROR);
+            }
+            if (pointLotUsageMapper.countByPointLotId(lot.getId()) > 0) {
+                throw new CustomException(ExceptionEnum.PLATFORM_RECHARGE_POINTS_ALREADY_USED);
+            }
+            if (account.getAvailablePoints() < order.getRechargePoints()) {
+                throw new CustomException(ExceptionEnum.PLATFORM_POINT_BALANCE_INSUFFICIENT);
+            }
+            return new RechargeRefundEligibility(normalizedOrderNo, true, null);
+        } catch (CustomException exception) {
+            return new RechargeRefundEligibility(normalizedOrderNo, false, exception.getMessage());
+        }
     }
 
     @Override

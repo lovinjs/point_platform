@@ -42,10 +42,13 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -242,6 +245,127 @@ class RechargeRefundServiceImplTest {
 
         assertEquals(ExceptionEnum.PLATFORM_ADMIN_ACCESS_DENIED.getCode(), exception.getCode());
         verify(rechargeOrderMapper, never()).selectByOrderNo(any());
+    }
+
+    @Test
+    void shouldReportUntouchedRechargeEligibilityWithoutLocksOrWrites() {
+        allowEligibility(account(1_000L), untouchedLot());
+
+        var result = service.getEligibility(3L, " RCH100 ");
+
+        assertEquals("RCH100", result.orderNo());
+        assertTrue(result.refundable());
+        assertEquals(null, result.unavailableReason());
+        verify(pointAccountMapper, never()).selectByCustomerIdForUpdate(any());
+        verify(pointLotMapper, never()).selectByRechargeOrderIdForUpdate(any());
+        verify(rechargeOrderMapper, never()).selectByOrderNoForUpdate(any());
+        verify(pointAccountMapper, never()).decreaseBalance(any(), any());
+        verify(rechargeRefundMapper, never()).insert(any(RechargeRefund.class));
+        verifyNoInteractions(pointLedgerMapper, auditLogMapper);
+    }
+
+    @Test
+    void shouldReportConsumedBatchAsIneligibleEvenWithEnoughOverallBalance() {
+        PointLot lot = untouchedLot();
+        lot.setRemainingPoints(900L);
+        allowEligibility(account(2_000L), lot);
+
+        var result = service.getEligibility(3L, "RCH100");
+
+        assertFalse(result.refundable());
+        assertEquals(ExceptionEnum.PLATFORM_RECHARGE_POINTS_ALREADY_USED.getMsg(), result.unavailableReason());
+        verify(pointLotUsageMapper, never()).countByPointLotId(any());
+        verify(rechargeRefundMapper, never()).insert(any(RechargeRefund.class));
+    }
+
+    @Test
+    void shouldReportRestoredBatchAsIneligibleWhenHistoricalUsageExists() {
+        allowEligibility(account(1_000L), untouchedLot());
+        when(pointLotUsageMapper.countByPointLotId(9L)).thenReturn(1L);
+
+        var result = service.getEligibility(3L, "RCH100");
+
+        assertFalse(result.refundable());
+        assertEquals(ExceptionEnum.PLATFORM_RECHARGE_POINTS_ALREADY_USED.getMsg(), result.unavailableReason());
+    }
+
+    @Test
+    void shouldReportNonCompletedOrdersAsIneligibleWithoutReadingPoints() {
+        allowSuperAdmin();
+        RechargeOrder order = completedOrder();
+        when(rechargeOrderMapper.selectByOrderNo("RCH100")).thenReturn(order);
+        for (RechargeOrderStatus status : List.of(
+                RechargeOrderStatus.CREATED, RechargeOrderStatus.CANCELLED, RechargeOrderStatus.REFUNDED
+        )) {
+            order.setOrderStatus(status);
+            var result = service.getEligibility(3L, "RCH100");
+            assertFalse(result.refundable());
+            assertEquals(ExceptionEnum.PLATFORM_RECHARGE_NOT_REFUNDABLE.getMsg(), result.unavailableReason());
+        }
+        verifyNoInteractions(pointAccountMapper, pointLotMapper, pointLotUsageMapper);
+    }
+
+    @Test
+    void shouldReportExistingRefundAsIneligibleEvenIfOrderStatusIsStale() {
+        allowSuperAdmin();
+        when(rechargeOrderMapper.selectByOrderNo("RCH100")).thenReturn(completedOrder());
+        when(rechargeRefundMapper.selectByRechargeOrderId(10L)).thenReturn(completedRefund());
+
+        assertFalse(service.getEligibility(3L, "RCH100").refundable());
+        verifyNoInteractions(pointAccountMapper, pointLotMapper, pointLotUsageMapper);
+    }
+
+    @Test
+    void shouldReportInsufficientBalanceAsIneligible() {
+        allowEligibility(account(900L), untouchedLot());
+
+        var result = service.getEligibility(3L, "RCH100");
+
+        assertFalse(result.refundable());
+        assertEquals(ExceptionEnum.PLATFORM_POINT_BALANCE_INSUFFICIENT.getMsg(), result.unavailableReason());
+    }
+
+    @Test
+    void shouldReportMissingBatchAsIneligible() {
+        allowEligibility(account(1_000L), null);
+
+        assertFalse(service.getEligibility(3L, "RCH100").refundable());
+        verifyNoInteractions(pointLotUsageMapper);
+    }
+
+    @Test
+    void shouldRejectEligibilityForNonSuperAdminBeforeLookingUpOrder() {
+        when(sysUserMapper.selectById(3L)).thenReturn(SysUser.builder()
+                .id(3L).status(SysUserStatus.ACTIVE).build());
+        when(staffAuthorityMapper.selectRoleCodes(3L)).thenReturn(List.of(RoleCode.CLERK.getCode()));
+
+        CustomException exception = assertThrows(
+                CustomException.class, () -> service.getEligibility(3L, "RCH100")
+        );
+
+        assertEquals(ExceptionEnum.PLATFORM_ADMIN_ACCESS_DENIED.getCode(), exception.getCode());
+        verifyNoInteractions(rechargeOrderMapper, pointAccountMapper, pointLotMapper);
+    }
+
+    @Test
+    void shouldRejectMissingOrderAndInvalidEligibilityRequests() {
+        allowSuperAdmin();
+
+        CustomException missing = assertThrows(
+                CustomException.class, () -> service.getEligibility(3L, "RCH-MISSING")
+        );
+        assertEquals(ExceptionEnum.PLATFORM_RECHARGE_ORDER_NOT_FOUND.getCode(), missing.getCode());
+        CustomException invalid = assertThrows(
+                CustomException.class, () -> service.getEligibility(3L, " ")
+        );
+        assertEquals(ExceptionEnum.PLATFORM_INVALID_REQUEST.getCode(), invalid.getCode());
+    }
+
+    private void allowEligibility(PointAccount account, PointLot lot) {
+        allowSuperAdmin();
+        when(rechargeOrderMapper.selectByOrderNo("RCH100")).thenReturn(completedOrder());
+        when(pointAccountMapper.selectByCustomerId(7L)).thenReturn(account);
+        when(pointLotMapper.selectByRechargeOrderId(10L)).thenReturn(lot);
     }
 
     private void allowSuperAdmin() {
