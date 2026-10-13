@@ -1,5 +1,7 @@
 # 管理后台域名预发布部署
 
+2026-10-13 用户确认该预发布后台已经部署并验证。以下保留当时的操作和回退说明；正式域名和干净账本切换另见 production-launch.md，不把本次反馈视为正式服务号或真实资金业务已经验收。
+
 ## 当前边界
 
 - 域名：`admin-stage.qiongyintech.com`，与 H5 的 `stage.qiongyintech.com` 分开。
